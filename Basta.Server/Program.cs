@@ -7,6 +7,18 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllers();
 
+// Configure Swagger/OpenAPI
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    {
+        Title = "Basta! Online API",
+        Version = "v1",
+        Description = "Real-time multiplayer word game backend — SignalR + REST API"
+    });
+});
+
 // Configure Entity Framework Core with SQLite
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
     ?? "Data Source=basta.db";
@@ -39,7 +51,12 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    // Any dev-specific configuration
+    app.UseSwagger();
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "Basta! Online API v1");
+        options.RoutePrefix = "swagger";
+    });
 }
 
 // In a containerized environment with Nginx, HTTPS redirection might be handled by the proxy
