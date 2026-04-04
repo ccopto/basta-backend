@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30114.105
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Basta.Server", "Basta.Server\Basta.Server.csproj", "{70097FD3-32B2-4B2E-81F1-F006E692A23E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Basta.Server.Tests", "Basta.Server.Tests\Basta.Server.Tests.csproj", "{D3B5838B-CDF7-4456-B1EA-8BA821FB431D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{70097FD3-32B2-4B2E-81F1-F006E692A23E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{70097FD3-32B2-4B2E-81F1-F006E692A23E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{70097FD3-32B2-4B2E-81F1-F006E692A23E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{70097FD3-32B2-4B2E-81F1-F006E692A23E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D3B5838B-CDF7-4456-B1EA-8BA821FB431D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D3B5838B-CDF7-4456-B1EA-8BA821FB431D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D3B5838B-CDF7-4456-B1EA-8BA821FB431D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D3B5838B-CDF7-4456-B1EA-8BA821FB431D}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

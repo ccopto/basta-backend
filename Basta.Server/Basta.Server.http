@@ -1,0 +1,6 @@
+@Basta.Server_HostAddress = http://localhost:5202
+
+GET {{Basta.Server_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
