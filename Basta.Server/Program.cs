@@ -1,5 +1,6 @@
 using Basta.Server.Data;
 using Basta.Server.Hubs;
+using Basta.Server.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -46,6 +47,9 @@ builder.Services.AddCors(options =>
 // Configure Health Checks
 builder.Services.AddHealthChecks();
 
+// Register Game Session Service
+builder.Services.AddSingleton<IGameSessionService, GameSessionService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -57,6 +61,13 @@ if (app.Environment.IsDevelopment())
         options.SwaggerEndpoint("/swagger/v1/swagger.json", "Basta! Online API v1");
         options.RoutePrefix = "swagger";
     });
+}
+
+// Automatically apply pending database migrations
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<BastaDbContext>();
+    db.Database.Migrate();
 }
 
 // In a containerized environment with Nginx, HTTPS redirection might be handled by the proxy
