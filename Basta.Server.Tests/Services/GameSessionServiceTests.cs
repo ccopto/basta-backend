@@ -22,7 +22,8 @@ public class GameSessionServiceTests
         // Assert
         code.Should().NotBeNullOrWhiteSpace();
         code.Length.Should().Be(4);
-        code.Should().MatchRegex("^[A-Z]{4}$");
+        // Character set excludes visually ambiguous letters: I, O, Q, V, Z
+        code.Should().MatchRegex("^[ABCDEFGHJKLMNPRSTUWXY]{4}$");
     }
 
     [Fact]

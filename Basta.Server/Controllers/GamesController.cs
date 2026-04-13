@@ -1,6 +1,4 @@
-using Basta.Server.Data;
 using Basta.Server.DTOs;
-using Basta.Server.Entities;
 using Basta.Server.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,13 +8,11 @@ namespace Basta.Server.Controllers;
 [Route("api/[controller]")]
 public class GamesController : ControllerBase
 {
-    private readonly BastaDbContext _context;
-    private readonly IGameSessionService _gameSessionService;
+    private readonly IGameOperationService _gameOperationService;
 
-    public GamesController(BastaDbContext context, IGameSessionService gameSessionService)
+    public GamesController(IGameOperationService gameOperationService)
     {
-        _context = context;
-        _gameSessionService = gameSessionService;
+        _gameOperationService = gameOperationService;
     }
 
     [HttpPost]
@@ -33,44 +29,16 @@ public class GamesController : ControllerBase
             return BadRequest("Nickname cannot be empty or solely whitespace.");
         }
 
-        // 1. Create the User (Host)
-        var host = new User
-        {
-            Nickname = nickname,
-            PreferredLanguage = request.PreferredLanguage
-        };
-
-        _context.Users.Add(host);
-        await _context.SaveChangesAsync();
-
-        // 2. Generate the Session Code and initialize in-memory state
-        var code = _gameSessionService.CreateSession(host.UserId, request.TotalRounds, request.TimerDuration);
-
-        // 3. Create the Game entity for DB persistence
-        var game = new Game
-        {
-            GameId = code,
-            HostUserId = host.UserId,
-            TotalRounds = request.TotalRounds,
-            TimerDuration = request.TimerDuration
-        };
-
-        _context.Games.Add(game);
-        
-        // 4. Add the Host as a Player to the DB
-        var gamePlayer = new GamePlayer
-        {
-            GameId = code,
-            UserId = host.UserId
-        };
-        _context.GamePlayers.Add(gamePlayer);
-
-        await _context.SaveChangesAsync();
+        var result = await _gameOperationService.CreateGameAsync(
+            nickname,
+            request.PreferredLanguage,
+            request.TotalRounds,
+            request.TimerDuration);
 
         return Ok(new CreateGameResponse
         {
-            GameCode = code,
-            HostUserId = host.UserId
+            GameCode = result.GameCode,
+            HostUserId = result.HostUserId
         });
     }
 }

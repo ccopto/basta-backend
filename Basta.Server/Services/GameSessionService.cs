@@ -6,7 +6,6 @@ namespace Basta.Server.Services;
 public class GameSessionService : IGameSessionService
 {
     private readonly ConcurrentDictionary<string, GameSession> _sessions = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Random _random = new();
 
     public string CreateSession(int hostUserId, int totalRounds, int timerDuration)
     {
@@ -36,8 +35,9 @@ public class GameSessionService : IGameSessionService
 
     private string GenerateCode()
     {
-        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        // Excludes visually ambiguous characters: I, O, Q, V, Z
+        const string chars = "ABCDEFGHJKLMNPRSTUWXY";
         return new string(Enumerable.Repeat(chars, 4)
-            .Select(s => s[_random.Next(s.Length)]).ToArray());
+            .Select(s => s[Random.Shared.Next(s.Length)]).ToArray());
     }
 }

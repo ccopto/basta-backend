@@ -47,8 +47,11 @@ builder.Services.AddCors(options =>
 // Configure Health Checks
 builder.Services.AddHealthChecks();
 
-// Register Game Session Service
+// Register Game Session Service (Singleton: holds in-memory game state across requests)
 builder.Services.AddSingleton<IGameSessionService, GameSessionService>();
+
+// Register Game Operation Service (Scoped: wraps a DbContext transaction per request)
+builder.Services.AddScoped<IGameOperationService, GameOperationService>();
 
 var app = builder.Build();
 
@@ -63,9 +66,10 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-// Automatically apply pending database migrations
-using (var scope = app.Services.CreateScope())
+// TODO: For production, replace auto-migrations with a dedicated CI/CD migration step (e.g., dotnet ef database update in the pipeline)
+if (app.Environment.IsDevelopment())
 {
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<BastaDbContext>();
     db.Database.Migrate();
 }
