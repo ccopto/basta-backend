@@ -462,3 +462,4 @@ $RECYCLE.BIN/
 appsettings.Development.json
 appsettings.Local.json
 infra/certs/
+AGENTS.md
