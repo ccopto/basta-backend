@@ -136,6 +136,8 @@ public class GameOperationService : IGameOperationService
 
             if (generatedUserId.HasValue)
             {
+                // Defensive call for when DB transactions fail after in-memory registration.
+                // If TryAddPlayer caused the failure, this is safely a no-op.
                 _gameSessionService.RemovePlayer(code, generatedUserId.Value);
             }
             

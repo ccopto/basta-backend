@@ -58,6 +58,14 @@ public class GameSessionService : IGameSessionService
                 return false;
             }
 
+            // Reject duplicate nicknames from *different* users
+            if (session.Players.Any(kvp => kvp.Key != userId &&
+                    string.Equals(kvp.Value, nickname, StringComparison.OrdinalIgnoreCase)))
+            {
+                errorMessage = "Nickname is already taken in this session.";
+                return false;
+            }
+
             // Also prevents duplicate additions since it's a Dictionary
             session.Players[userId] = nickname;
         }
@@ -83,28 +91,28 @@ public class GameSessionService : IGameSessionService
             return null;
         }
 
-        var players = new List<LobbyPlayer>();
         lock (session)
         {
-            foreach (var kvp in session.Players)
+            var players = session.Players.Select(kvp => new LobbyPlayer
             {
-                players.Add(new LobbyPlayer
-                {
-                    UserId = kvp.Key,
-                    Nickname = kvp.Value,
-                    Score = 0 // For now, score is 0 in the lobby
-                });
-            }
-        }
+                UserId = kvp.Key,
+                Nickname = kvp.Value,
+                Score = 0, // For now, score is 0 in the lobby
+                IsHost = kvp.Key == session.HostUserId,
+                IsOnline = true
+            }).ToList();
 
-        return new LobbySnapshot
-        {
-            GameCode = session.Code,
-            HostUserId = session.HostUserId,
-            TotalRounds = session.TotalRounds,
-            TimerDuration = session.TimerDuration,
-            Players = players
-        };
+            return new LobbySnapshot
+            {
+                GameCode = session.Code,
+                HostUserId = session.HostUserId,
+                TotalRounds = session.TotalRounds,
+                TimerDuration = session.TimerDuration,
+                Language = string.Empty,
+                State = "Lobby",
+                Players = players
+            };
+        }
     }
 
     private static string GenerateCode()
