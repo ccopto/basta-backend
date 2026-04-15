@@ -1,11 +1,17 @@
 using Basta.Server.Data;
 using Basta.Server.Hubs;
+using Basta.Server.Services;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllers();
+
+// Register ProblemDetails services so all error responses follow RFC 7807.
+builder.Services.AddProblemDetails();
 
 // Configure Swagger/OpenAPI
 builder.Services.AddEndpointsApiExplorer();
@@ -46,7 +52,39 @@ builder.Services.AddCors(options =>
 // Configure Health Checks
 builder.Services.AddHealthChecks();
 
+// Register Game Session Service (Singleton: holds in-memory game state across requests)
+builder.Services.AddSingleton<IGameSessionService, GameSessionService>();
+
+// Register Game Operation Service (Scoped: wraps a DbContext transaction per request)
+builder.Services.AddScoped<IGameOperationService, GameOperationService>();
+
 var app = builder.Build();
+
+// Global exception handler — returns RFC 7807 ProblemDetails JSON for any unhandled exception.
+// Must be registered before all other middleware to catch errors from any point in the pipeline.
+app.UseExceptionHandler(errApp =>
+{
+    errApp.Run(async context =>
+    {
+        var feature = context.Features.Get<IExceptionHandlerFeature>();
+        var exception = feature?.Error;
+
+        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogError(exception, "Unhandled exception for {Method} {Path}",
+            context.Request.Method, context.Request.Path);
+
+        var problem = new ProblemDetails
+        {
+            Status = StatusCodes.Status500InternalServerError,
+            Title = "An unexpected error occurred.",
+            Detail = app.Environment.IsDevelopment() ? exception?.Message : null
+        };
+
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        context.Response.ContentType = "application/problem+json";
+        await context.Response.WriteAsJsonAsync(problem);
+    });
+});
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -57,6 +95,14 @@ if (app.Environment.IsDevelopment())
         options.SwaggerEndpoint("/swagger/v1/swagger.json", "Basta! Online API v1");
         options.RoutePrefix = "swagger";
     });
+}
+
+// TODO: For production, replace auto-migrations with a dedicated CI/CD migration step (e.g., dotnet ef database update in the pipeline)
+if (app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<BastaDbContext>();
+    db.Database.Migrate();
 }
 
 // In a containerized environment with Nginx, HTTPS redirection might be handled by the proxy
