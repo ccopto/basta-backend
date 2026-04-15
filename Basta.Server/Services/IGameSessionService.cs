@@ -12,4 +12,8 @@ public interface IGameSessionService
     /// registered before a database transaction failed.
     /// </summary>
     bool RemoveSession(string code);
+
+    bool TryAddPlayer(string code, int userId, string nickname, out string errorMessage);
+    Basta.Server.DTOs.LobbySnapshot? GetLobbySnapshot(string code);
+    void RemovePlayer(string code, int userId);
 }

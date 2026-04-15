@@ -14,9 +14,20 @@ public interface IGameOperationService
         int totalRounds,
         int timerDuration,
         CancellationToken cancellationToken = default);
+
+    Task<JoinGameResult> JoinGameAsync(
+        string code,
+        string nickname,
+        string preferredLanguage,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
 /// Represents the result of a successful game creation operation.
 /// </summary>
 public record CreateGameResult(string GameCode, int HostUserId);
+
+/// <summary>
+/// Represents the result of a successful join operation.
+/// </summary>
+public record JoinGameResult(int UserId, string GameCode);

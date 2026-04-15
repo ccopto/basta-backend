@@ -9,10 +9,12 @@ namespace Basta.Server.Controllers;
 public class GamesController : ControllerBase
 {
     private readonly IGameOperationService _gameOperationService;
+    private readonly IGameSessionService _gameSessionService;
 
-    public GamesController(IGameOperationService gameOperationService)
+    public GamesController(IGameOperationService gameOperationService, IGameSessionService gameSessionService)
     {
         _gameOperationService = gameOperationService;
+        _gameSessionService = gameSessionService;
     }
 
     [HttpPost]
@@ -43,5 +45,21 @@ public class GamesController : ControllerBase
             GameCode = result.GameCode,
             HostUserId = result.HostUserId
         });
+    }
+
+    [HttpGet("{code}")]
+    public ActionResult<LobbySnapshot> GetGame(string code)
+    {
+         var snapshot = _gameSessionService.GetLobbySnapshot(code.ToUpperInvariant());
+         if (snapshot is null)
+         {
+             return NotFound(new ProblemDetails 
+             { 
+                 Title = "Game not found.", 
+                 Detail = $"No active game found with code '{code}'." 
+             });
+         }
+
+         return Ok(snapshot);
     }
 }

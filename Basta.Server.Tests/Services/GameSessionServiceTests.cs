@@ -55,4 +55,42 @@ public class GameSessionServiceTests
         // Assert
         session.Should().BeNull();
     }
+
+    [Fact]
+    public void TryAddPlayer_ValidJoin_AddsPlayerToSession()
+    {
+        // Arrange
+        var code = _sut.CreateSession(1, 5, 60);
+
+        // Act
+        var result = _sut.TryAddPlayer(code, 2, "TestJoin", out var errorMessage);
+
+        // Assert
+        result.Should().BeTrue();
+        errorMessage.Should().BeEmpty();
+        var session = _sut.TryGetSession(code);
+        session!.Players.Should().ContainKey(2).WhoseValue.Should().Be("TestJoin");
+    }
+
+    [Fact]
+    public void TryAddPlayer_RoomFull_ReturnsFalse()
+    {
+        // Arrange
+        var code = _sut.CreateSession(1, 5, 60);
+        _sut.TryAddPlayer(code, 1, "Host", out _);
+        _sut.TryAddPlayer(code, 2, "P2", out _);
+        _sut.TryAddPlayer(code, 3, "P3", out _);
+        _sut.TryAddPlayer(code, 4, "P4", out _);
+        _sut.TryAddPlayer(code, 5, "P5", out _);
+
+        // Act
+        var result = _sut.TryAddPlayer(code, 6, "Overflow", out var errorMessage);
+
+        // Assert
+        result.Should().BeFalse();
+        errorMessage.Should().Be("Game session is full.");
+        
+        var session = _sut.TryGetSession(code);
+        session!.Players.Should().NotContainKey(6);
+    }
 }

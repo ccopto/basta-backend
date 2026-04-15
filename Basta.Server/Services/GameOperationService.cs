@@ -88,4 +88,58 @@ public class GameOperationService : IGameOperationService
             throw;
         }
     }
+
+    public async Task<JoinGameResult> JoinGameAsync(
+        string code,
+        string nickname,
+        string preferredLanguage,
+        CancellationToken cancellationToken = default)
+    {
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        int? generatedUserId = null;
+
+        try
+        {
+            // 1. Create the joining User and get their generated UserId
+            var user = new User
+            {
+                Nickname = nickname,
+                PreferredLanguage = preferredLanguage
+            };
+
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync(cancellationToken);
+            generatedUserId = user.UserId;
+
+            // 2. Validate joining capability in the session memory
+            if (!_gameSessionService.TryAddPlayer(code, user.UserId, nickname, out var errorMessage))
+            {
+                throw new InvalidOperationException(errorMessage);
+            }
+
+            // 3. Persist the GamePlayer mapping for cumulative scores reporting
+            var gamePlayer = new GamePlayer
+            {
+                GameId = code,
+                UserId = user.UserId
+            };
+            
+            _context.GamePlayers.Add(gamePlayer);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            await transaction.CommitAsync(cancellationToken);
+            return new JoinGameResult(user.UserId, code);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+
+            if (generatedUserId.HasValue)
+            {
+                _gameSessionService.RemovePlayer(code, generatedUserId.Value);
+            }
+            
+            throw;
+        }
+    }
 }
