@@ -11,12 +11,14 @@ namespace Basta.Server.Tests.Controllers;
 public class GamesControllerTests
 {
     private readonly Mock<IGameOperationService> _mockGameOperationService;
+    private readonly Mock<IGameSessionService> _mockGameSessionService;
     private readonly GamesController _sut;
 
     public GamesControllerTests()
     {
         _mockGameOperationService = new Mock<IGameOperationService>();
-        _sut = new GamesController(_mockGameOperationService.Object);
+        _mockGameSessionService = new Mock<IGameSessionService>();
+        _sut = new GamesController(_mockGameOperationService.Object, _mockGameSessionService.Object);
     }
 
     [Fact]
