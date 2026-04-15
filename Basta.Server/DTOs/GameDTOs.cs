@@ -9,6 +9,7 @@ public class CreateGameRequest
     [MaxLength(50)]
     public string HostNickname { get; set; } = string.Empty;
 
+    [StringLength(10)]
     public string PreferredLanguage { get; set; } = "en";
     
     [Range(1, 20)]
