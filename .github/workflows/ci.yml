@@ -2,9 +2,9 @@ name: Backend CI
 
 on:
   pull_request:
-    branches: [ "master", "develop", "release/*" ]
+    branches: [ "master", "develop", "release/*", "feature/**" ]
   push:
-    branches: [ "master", "develop", "release/*" ]
+    branches: [ "master", "develop", "release/*", "feature/**" ]
 
 jobs:
   build:
@@ -22,3 +22,6 @@ jobs:
       
     - name: Build
       run: dotnet build --no-restore --configuration Release
+
+    - name: Test
+      run: dotnet test --no-build --configuration Release --verbosity normal
