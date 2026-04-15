@@ -6,7 +6,12 @@ public class Game
     public int HostUserId { get; set; }
     public int TotalRounds { get; set; }
     public int TimerDuration { get; set; }
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Set by the database engine via HasDefaultValueSql("datetime('now')").
+    /// Do not assign this in application code.
+    /// </summary>
+    public DateTime CreatedAt { get; set; }
 
     // Navigation properties
     public User Host { get; set; } = null!;

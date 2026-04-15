@@ -29,7 +29,11 @@ public class BastaDbContext : DbContext
         {
             entity.HasKey(e => e.GameId);
             entity.Property(e => e.GameId).HasMaxLength(4);
-            
+
+            // CreatedAt is owned by the database; prevents clock-skew across app instances.
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("datetime('now')");
+
             entity.HasOne(d => d.Host)
                 .WithMany(p => p.HostedGames)
                 .HasForeignKey(d => d.HostUserId)
@@ -39,6 +43,9 @@ public class BastaDbContext : DbContext
         modelBuilder.Entity<GamePlayer>(entity =>
         {
             entity.HasKey(e => e.GamePlayerId);
+
+            // A player may only appear once per game.
+            entity.HasIndex(e => new { e.GameId, e.UserId }).IsUnique();
 
             entity.HasOne(d => d.Game)
                 .WithMany(p => p.Players)
