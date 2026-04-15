@@ -9,21 +9,23 @@ public class GameSessionService : IGameSessionService
 
     public string CreateSession(int hostUserId, int totalRounds, int timerDuration)
     {
+        // Atomic loop: TryAdd returns false if the code already exists, so we keep
+        // generating until we win the insert. This eliminates the TOCTOU window that
+        // existed between ContainsKey and TryAdd.
         string code;
+        GameSession session;
         do
         {
             code = GenerateCode();
-        } while (_sessions.ContainsKey(code));
+            session = new GameSession
+            {
+                Code = code,
+                HostUserId = hostUserId,
+                TotalRounds = totalRounds,
+                TimerDuration = timerDuration
+            };
+        } while (!_sessions.TryAdd(code, session));
 
-        var session = new GameSession
-        {
-            Code = code,
-            HostUserId = hostUserId,
-            TotalRounds = totalRounds,
-            TimerDuration = timerDuration
-        };
-
-        _sessions.TryAdd(code, session);
         return code;
     }
 
@@ -33,7 +35,13 @@ public class GameSessionService : IGameSessionService
         return session;
     }
 
-    private string GenerateCode()
+    /// <inheritdoc/>
+    public bool RemoveSession(string code)
+    {
+        return _sessions.TryRemove(code, out _);
+    }
+
+    private static string GenerateCode()
     {
         // Excludes visually ambiguous characters: I, O, Q, V, Z
         const string chars = "ABCDEFGHJKLMNPRSTUWXY";
