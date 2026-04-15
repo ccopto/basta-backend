@@ -45,7 +45,19 @@ public class BastaHub : Hub
                     // Broadcast game start to all players in the room
                     await Clients.Group(code).SendAsync("GameStarted");
                 }
+                else if (session.HostUserId != userId)
+                {
+                    await Clients.Caller.SendAsync("Error", "Only the host can start the game.");
+                }
             }
+            else
+            {
+                await Clients.Caller.SendAsync("Error", "Game session not found.");
+            }
+        }
+        else
+        {
+            await Clients.Caller.SendAsync("Error", "You must join a game first.");
         }
     }
 
