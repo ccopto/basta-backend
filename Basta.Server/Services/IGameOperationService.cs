@@ -12,7 +12,8 @@ public interface IGameOperationService
         string nickname,
         string preferredLanguage,
         int totalRounds,
-        int timerDuration);
+        int timerDuration,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>

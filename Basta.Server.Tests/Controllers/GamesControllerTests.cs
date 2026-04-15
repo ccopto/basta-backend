@@ -33,11 +33,11 @@ public class GamesControllerTests
 
         var expectedResult = new CreateGameResult("ABCD", 1);
         _mockGameOperationService
-            .Setup(s => s.CreateGameAsync("TestHost", "es", 5, 60))
+            .Setup(s => s.CreateGameAsync("TestHost", "es", 5, 60, It.IsAny<CancellationToken>()))
             .ReturnsAsync(expectedResult);
 
         // Act
-        var result = await _sut.CreateGame(request);
+        var result = await _sut.CreateGame(request, CancellationToken.None);
 
         // Assert
         var okResult = result.Result as OkObjectResult;
@@ -49,7 +49,8 @@ public class GamesControllerTests
         response.HostUserId.Should().Be(1);
 
         _mockGameOperationService.Verify(
-            s => s.CreateGameAsync("TestHost", "es", 5, 60), Times.Once);
+            s => s.CreateGameAsync("TestHost", "es", 5, 60, It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Theory]
@@ -69,7 +70,7 @@ public class GamesControllerTests
             _sut.ModelState.AddModelError("HostNickname", "Required");
 
         // Act
-        var result = await _sut.CreateGame(request);
+        var result = await _sut.CreateGame(request, CancellationToken.None);
 
         // Assert
         var badRequestResult = result.Result as BadRequestObjectResult;
@@ -77,7 +78,10 @@ public class GamesControllerTests
 
         // Service should never be called on invalid input
         _mockGameOperationService.Verify(
-            s => s.CreateGameAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>()),
+            s => s.CreateGameAsync(
+                It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<int>(), It.IsAny<int>(),
+                It.IsAny<CancellationToken>()),
             Times.Never);
     }
 }

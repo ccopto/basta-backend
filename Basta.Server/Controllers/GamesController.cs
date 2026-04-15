@@ -16,7 +16,9 @@ public class GamesController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<CreateGameResponse>> CreateGame([FromBody] CreateGameRequest request)
+    public async Task<ActionResult<CreateGameResponse>> CreateGame(
+        [FromBody] CreateGameRequest request,
+        CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid)
         {
@@ -33,7 +35,8 @@ public class GamesController : ControllerBase
             nickname,
             request.PreferredLanguage,
             request.TotalRounds,
-            request.TimerDuration);
+            request.TimerDuration,
+            cancellationToken);
 
         return Ok(new CreateGameResponse
         {
