@@ -62,4 +62,45 @@ public class GamesController : ControllerBase
 
          return Ok(snapshot);
     }
+
+    [HttpPost("{code}/join")]
+    public async Task<ActionResult<JoinGameResponse>> JoinGame(
+        string code,
+        [FromBody] JoinGameRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        var nickname = request.Nickname.Trim();
+        if (string.IsNullOrWhiteSpace(nickname))
+        {
+            return BadRequest("Nickname cannot be empty or solely whitespace.");
+        }
+
+        try
+        {
+            var result = await _gameOperationService.JoinGameAsync(
+                code.ToUpperInvariant(),
+                nickname,
+                request.PreferredLanguage,
+                cancellationToken);
+
+            return Ok(new JoinGameResponse
+            {
+                GameCode = result.GameCode,
+                UserId = result.UserId
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Join failed.",
+                Detail = ex.Message
+            });
+        }
+    }
 }
