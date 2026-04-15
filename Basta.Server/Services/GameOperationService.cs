@@ -10,6 +10,8 @@ namespace Basta.Server.Services;
 /// 2. Registers an in-memory GameSession via IGameSessionService.
 /// 3. Persists the Game and GamePlayer entities.
 /// All DB operations are wrapped in a transaction to guarantee atomicity.
+/// If the transaction fails after the in-memory session was registered, the
+/// session is removed to keep in-memory and DB state consistent.
 /// </summary>
 public class GameOperationService : IGameOperationService
 {
@@ -26,9 +28,14 @@ public class GameOperationService : IGameOperationService
         string nickname,
         string preferredLanguage,
         int totalRounds,
-        int timerDuration)
+        int timerDuration,
+        CancellationToken cancellationToken = default)
     {
-        await using var transaction = await _context.Database.BeginTransactionAsync();
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+
+        // Track the session code outside the try so the catch block can clean it up.
+        string? sessionCode = null;
+
         try
         {
             // 1. Create the host User and get their generated UserId
@@ -39,15 +46,15 @@ public class GameOperationService : IGameOperationService
             };
 
             _context.Users.Add(host);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
 
             // 2. Register the in-memory session (after UserId is available)
-            var code = _gameSessionService.CreateSession(host.UserId, totalRounds, timerDuration);
+            sessionCode = _gameSessionService.CreateSession(host.UserId, totalRounds, timerDuration);
 
             // 3. Persist the Game entity
             var game = new Game
             {
-                GameId = code,
+                GameId = sessionCode,
                 HostUserId = host.UserId,
                 TotalRounds = totalRounds,
                 TimerDuration = timerDuration
@@ -57,19 +64,27 @@ public class GameOperationService : IGameOperationService
             // 4. Add the host as the first GamePlayer
             var gamePlayer = new GamePlayer
             {
-                GameId = code,
+                GameId = sessionCode,
                 UserId = host.UserId
             };
             _context.GamePlayers.Add(gamePlayer);
 
-            await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
 
-            return new CreateGameResult(code, host.UserId);
+            return new CreateGameResult(sessionCode, host.UserId);
         }
         catch
         {
-            await transaction.RollbackAsync();
+            await transaction.RollbackAsync(CancellationToken.None);
+
+            // If the in-memory session was already registered before the DB failure,
+            // remove it so the two stores stay consistent.
+            if (sessionCode is not null)
+            {
+                _gameSessionService.RemoveSession(sessionCode);
+            }
+
             throw;
         }
     }
