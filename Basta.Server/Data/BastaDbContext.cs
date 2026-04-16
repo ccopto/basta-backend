@@ -13,6 +13,7 @@ public class BastaDbContext : DbContext
     public DbSet<User> Users => Set<User>();
     public DbSet<Game> Games => Set<Game>();
     public DbSet<GamePlayer> GamePlayers => Set<GamePlayer>();
+    public DbSet<Category> Categories => Set<Category>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -56,6 +57,24 @@ public class BastaDbContext : DbContext
                 .WithMany(p => p.Participations)
                 .HasForeignKey(d => d.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Category>(entity =>
+        {
+            entity.HasKey(e => e.CategoryId);
+            entity.Property(e => e.EnglishName).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.SpanishName).IsRequired().HasMaxLength(100);
+
+            entity.HasData(
+                new Category { CategoryId = 1, EnglishName = "Name", SpanishName = "Nombre" },
+                new Category { CategoryId = 2, EnglishName = "Animal", SpanishName = "Animal" },
+                new Category { CategoryId = 3, EnglishName = "City/Country", SpanishName = "Ciudad/País" },
+                new Category { CategoryId = 4, EnglishName = "Food/Drink", SpanishName = "Comida/Bebida" },
+                new Category { CategoryId = 5, EnglishName = "Color", SpanishName = "Color" },
+                new Category { CategoryId = 6, EnglishName = "Thing", SpanishName = "Cosa" },
+                new Category { CategoryId = 7, EnglishName = "Profession", SpanishName = "Profesión" },
+                new Category { CategoryId = 8, EnglishName = "Brand", SpanishName = "Marca" }
+            );
         });
     }
 }
