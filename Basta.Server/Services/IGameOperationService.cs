@@ -13,6 +13,7 @@ public interface IGameOperationService
         string preferredLanguage,
         int totalRounds,
         int timerDuration,
+        List<int> categoryIds,
         CancellationToken cancellationToken = default);
 
     Task<JoinGameResult> JoinGameAsync(

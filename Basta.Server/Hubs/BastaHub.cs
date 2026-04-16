@@ -42,8 +42,15 @@ public class BastaHub : Hub
                 // Validate host and player count
                 if (session.HostUserId == userId && session.Players.Count >= 2)
                 {
-                    // Broadcast game start to all players in the room
-                    await Clients.Group(code).SendAsync("GameStarted");
+                    if (session.SelectedCategoryIds.Count >= 1)
+                    {
+                        // Broadcast game start to all players in the room
+                        await Clients.Group(code).SendAsync("GameStarted");
+                    }
+                    else
+                    {
+                        await Clients.Caller.SendAsync("Error", "You must select at least one category before starting the game.");
+                    }
                 }
                 else if (session.HostUserId != userId)
                 {
