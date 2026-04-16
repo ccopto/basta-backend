@@ -68,6 +68,19 @@ public class BastaHub : Hub
         }
     }
 
+    public async Task SetCategories(List<int> categoryIds)
+    {
+        if (Context.Items.TryGetValue("GameCode", out var codeObj) && codeObj is string code &&
+            Context.Items.TryGetValue("UserId", out var userIdObj) && userIdObj is int userId)
+        {
+            var session = _gameSessionService.TryGetSession(code);
+            if (session != null && session.HostUserId == userId)
+            {
+                session.SelectedCategoryIds = categoryIds;
+            }
+        }
+    }
+
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         if (Context.Items.TryGetValue("GameCode", out var codeObj) && codeObj is string code &&
