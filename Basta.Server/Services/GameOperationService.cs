@@ -145,4 +145,28 @@ public class GameOperationService : IGameOperationService
             throw;
         }
     }
+
+    public async Task SubmitAnswersAsync(
+        string code,
+        int roundNumber,
+        int userId,
+        Dictionary<int, string> answers,
+        CancellationToken cancellationToken = default)
+    {
+        // 1. Create RoundAnswer entities for each submitted category
+        var roundAnswers = answers.Select(kvp => new RoundAnswer
+        {
+            GameId = code,
+            RoundNumber = roundNumber,
+            UserId = userId,
+            CategoryId = kvp.Key,
+            SubmittedAnswer = kvp.Value?.Trim() ?? string.Empty,
+            IsValid = null, // To be scored later
+            PointsAwarded = 0
+        }).ToList();
+
+        // 2. Persist to DB
+        _context.RoundAnswers.AddRange(roundAnswers);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
 }
