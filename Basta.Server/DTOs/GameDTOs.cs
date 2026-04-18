@@ -17,7 +17,12 @@ public class CreateGameRequest
 
     [Range(30, 120)]
     public int TimerDuration { get; set; } = 60;
+
+    [Required]
+    [MinLength(1, ErrorMessage = "At least one category is required.")]
+    public List<int> CategoryIds { get; set; } = new();
 }
+
 
 public class CreateGameResponse
 {

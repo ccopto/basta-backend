@@ -15,4 +15,8 @@ public class GameSession
     
     // Letters that have been generated in past rounds
     public HashSet<char> UsedLetters { get; set; } = new();
+
+    // Category IDs selected by the host for this session
+    public List<int> SelectedCategoryIds { get; set; } = new();
 }
+

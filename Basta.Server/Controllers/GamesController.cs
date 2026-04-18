@@ -38,6 +38,7 @@ public class GamesController : ControllerBase
             request.PreferredLanguage,
             request.TotalRounds,
             request.TimerDuration,
+            request.CategoryIds,
             cancellationToken);
 
         return Ok(new CreateGameResponse

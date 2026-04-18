@@ -29,6 +29,7 @@ public class GameOperationService : IGameOperationService
         string preferredLanguage,
         int totalRounds,
         int timerDuration,
+        List<int> categoryIds,
         CancellationToken cancellationToken = default)
     {
         await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
@@ -49,7 +50,7 @@ public class GameOperationService : IGameOperationService
             await _context.SaveChangesAsync(cancellationToken);
 
             // 2. Register the in-memory session (after UserId is available)
-            sessionCode = _gameSessionService.CreateSession(host.UserId, totalRounds, timerDuration);
+            sessionCode = _gameSessionService.CreateSession(host.UserId, totalRounds, timerDuration, categoryIds);
 
             // 3. Persist the Game entity
             var game = new Game

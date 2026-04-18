@@ -8,7 +8,7 @@ public class GameSessionService : IGameSessionService
 {
     private readonly ConcurrentDictionary<string, GameSession> _sessions = new(StringComparer.OrdinalIgnoreCase);
 
-    public string CreateSession(int hostUserId, int totalRounds, int timerDuration)
+    public string CreateSession(int hostUserId, int totalRounds, int timerDuration, List<int> categoryIds)
     {
         // Atomic loop: TryAdd returns false if the code already exists, so we keep
         // generating until we win the insert. This eliminates the TOCTOU window that
@@ -23,7 +23,8 @@ public class GameSessionService : IGameSessionService
                 Code = code,
                 HostUserId = hostUserId,
                 TotalRounds = totalRounds,
-                TimerDuration = timerDuration
+                TimerDuration = timerDuration,
+                SelectedCategoryIds = categoryIds
             };
         } while (!_sessions.TryAdd(code, session));
 

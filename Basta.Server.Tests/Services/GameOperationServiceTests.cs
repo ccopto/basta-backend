@@ -47,7 +47,8 @@ public class GameOperationServiceTests : IDisposable
             nickname: "Alice",
             preferredLanguage: "en",
             totalRounds: 5,
-            timerDuration: 60);
+            timerDuration: 60,
+            categoryIds: new List<int> { 1 });
 
         // Assert — result shape
         result.Should().NotBeNull();
@@ -85,8 +86,8 @@ public class GameOperationServiceTests : IDisposable
     public async Task CreateGameAsync_MultipleGames_EachGetsUniqueCode()
     {
         // Act
-        var result1 = await _sut.CreateGameAsync("Alice", "en", 5, 60);
-        var result2 = await _sut.CreateGameAsync("Bob", "es", 3, 30);
+        var result1 = await _sut.CreateGameAsync("Alice", "en", 5, 60, new List<int> { 1 });
+        var result2 = await _sut.CreateGameAsync("Bob", "es", 3, 30, new List<int> { 1 });
 
         // Assert
         result1.GameCode.Should().NotBe(result2.GameCode);
@@ -115,7 +116,7 @@ public class GameOperationServiceTests : IDisposable
         var brokenSut = new GameOperationService(brokenContext, isolatedSessionService);
 
         // Act & Assert — the operation should throw
-        var act = async () => await brokenSut.CreateGameAsync("Charlie", "en", 5, 60);
+        var act = async () => await brokenSut.CreateGameAsync("Charlie", "en", 5, 60, new List<int> { 1 });
         await act.Should().ThrowAsync<Exception>();
 
         // Assert — no orphaned session remains
@@ -126,7 +127,7 @@ public class GameOperationServiceTests : IDisposable
         // (no sessions were left in the service).
         // The simplest assertion: calling CreateSession again on a fresh service
         // still works, meaning no state was corrupted.
-        isolatedSessionService.CreateSession(1, 3, 30).Should().NotBeNullOrWhiteSpace();
+        isolatedSessionService.CreateSession(1, 3, 30, new List<int> { 1 }).Should().NotBeNullOrWhiteSpace();
     }
 
     public void Dispose()
