@@ -1,4 +1,4 @@
-using System.Threading;
+using System.Collections.Generic;
 
 namespace Basta.Server.Models;
 
@@ -18,7 +18,6 @@ public class GameSession
     // We can hold connected players in future stories.
     public Dictionary<int, string> Players { get; set; } = new();
     
-    // Letters that have been generated in past rounds
     public HashSet<char> UsedLetters { get; set; } = new();
 
     // Category IDs selected by the host for this session
@@ -27,8 +26,4 @@ public class GameSession
     // Tracks answers per userId per category for the current round
     // Key: UserId, Value: dict of categoryId -> answer string
     public Dictionary<int, Dictionary<int, string>> CurrentRoundAnswers { get; set; } = new();
-
-    // Managing the server-side timer for Option A
-    public CancellationTokenSource? RoundTimerCts { get; set; }
 }
-

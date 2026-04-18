@@ -7,6 +7,7 @@ namespace Basta.Server.Services;
 public class GameSessionService : IGameSessionService
 {
     private readonly ConcurrentDictionary<string, GameSession> _sessions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, CancellationTokenSource> _roundTimers = new(StringComparer.OrdinalIgnoreCase);
 
     public string CreateSession(int hostUserId, int totalRounds, int timerDuration, List<int> categoryIds)
     {
@@ -85,16 +86,18 @@ public class GameSessionService : IGameSessionService
         }
     }
 
-    public char? StartNextRound(string code)
+    public (char? letter, CancellationToken cancellationToken) StartNextRound(string code)
     {
-        if (!_sessions.TryGetValue(code, out var session)) return null;
+        if (!_sessions.TryGetValue(code, out var session)) 
+            return (null, CancellationToken.None);
 
         lock (session)
         {
             const string alphabet = "ABCDEFGHJKLMNPRSTUWXY";
             var availableLetters = alphabet.Where(c => !session.UsedLetters.Contains(c)).ToList();
 
-            if (availableLetters.Count == 0) return null;
+            if (availableLetters.Count == 0) 
+                return (null, CancellationToken.None);
 
             var selectedLetter = availableLetters[Random.Shared.Next(availableLetters.Count)];
             
@@ -105,9 +108,15 @@ public class GameSessionService : IGameSessionService
             session.RoundLocked = false;
             session.CurrentRoundAnswers.Clear();
             
-            // Note: CancellationTokenSource will be initialized by the Hub for the timer
+            // Create and store the Round CTS
+            var cts = new CancellationTokenSource();
+            _roundTimers.AddOrUpdate(code, cts, (_, old) => {
+                old.Cancel();
+                old.Dispose();
+                return cts;
+            });
             
-            return selectedLetter;
+            return (selectedLetter, cts.Token);
         }
     }
 
@@ -120,12 +129,14 @@ public class GameSessionService : IGameSessionService
                 session.RoundLocked = true;
                 session.RoundActive = false;
                 
-                // Cancel and dispose the CTS if it's still running
-                try {
-                    session.RoundTimerCts?.Cancel();
-                    session.RoundTimerCts?.Dispose();
-                } catch { /* Suppress disposal/cancellation errors */ }
-                session.RoundTimerCts = null;
+                // Cancel and dispose the CTS from our internal tracking
+                if (_roundTimers.TryRemove(code, out var cts))
+                {
+                    try {
+                        cts.Cancel();
+                        cts.Dispose();
+                    } catch { /* Suppress disposal/cancellation errors */ }
+                }
             }
         }
     }
