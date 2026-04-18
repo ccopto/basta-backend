@@ -57,13 +57,17 @@ public class GameOperationServiceTests : IDisposable
         result.HostUserId.Should().BeGreaterThan(0);
 
         // Assert — User was persisted
-        var user = await _context.Users.FindAsync(result.HostUserId);
+        var user = await _context.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.UserId == result.HostUserId);
         user.Should().NotBeNull();
         user!.Nickname.Should().Be("Alice");
         user.PreferredLanguage.Should().Be("en");
 
         // Assert — Game was persisted
-        var game = await _context.Games.FindAsync(result.GameCode);
+        var game = await _context.Games
+            .AsNoTracking()
+            .FirstOrDefaultAsync(g => g.GameId == result.GameCode);
         game.Should().NotBeNull();
         game!.HostUserId.Should().Be(result.HostUserId);
         game.TotalRounds.Should().Be(5);
@@ -71,6 +75,7 @@ public class GameOperationServiceTests : IDisposable
 
         // Assert — Host was added as a GamePlayer
         var player = await _context.GamePlayers
+            .AsNoTracking()
             .FirstOrDefaultAsync(p => p.GameId == result.GameCode && p.UserId == result.HostUserId);
         player.Should().NotBeNull();
 
@@ -128,6 +133,60 @@ public class GameOperationServiceTests : IDisposable
         // The simplest assertion: calling CreateSession again on a fresh service
         // still works, meaning no state was corrupted.
         isolatedSessionService.CreateSession(1, 3, 30, new List<int> { 1 }).Should().NotBeNullOrWhiteSpace();
+    }
+    [Fact]
+    public async Task JoinGameAsync_ValidInput_CreatesUserAndPlayerMapping()
+    {
+        // Arrange
+        var createResult = await _sut.CreateGameAsync("Host", "en", 5, 60, new List<int> { 1 });
+
+        // Act
+        var joinResult = await _sut.JoinGameAsync(createResult.GameCode, "Guest", "es");
+
+        // Assert
+        joinResult.Should().NotBeNull();
+        joinResult.UserId.Should().BeGreaterThan(0);
+        joinResult.UserId.Should().NotBe(createResult.HostUserId);
+
+        // Assert DB
+        var user = await _context.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.UserId == joinResult.UserId);
+        user!.Nickname.Should().Be("Guest");
+
+        var map = await _context.GamePlayers
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.GameId == createResult.GameCode && p.UserId == joinResult.UserId);
+        map.Should().NotBeNull();
+
+        // Assert Memory
+        var session = _sessionService.TryGetSession(createResult.GameCode);
+        session!.Players.Should().ContainKey(joinResult.UserId).WhoseValue.Should().Be("Guest");
+    }
+
+    [Fact]
+    public async Task SubmitAnswersAsync_PersistsMultipleAnswers()
+    {
+        // Arrange
+        var result = await _sut.CreateGameAsync("Host", "en", 5, 60, new List<int> { 1 });
+        var answers = new Dictionary<int, string> 
+        { 
+            { 1, "Apple" }, 
+            { 2, "Banana" } 
+        };
+
+        // Act
+        await _sut.SubmitAnswersAsync(result.GameCode, 1, result.HostUserId, answers);
+
+        // Assert
+        var persisted = await _context.RoundAnswers
+            .AsNoTracking()
+            .Where(a => a.GameId == result.GameCode && a.UserId == result.HostUserId)
+            .ToListAsync();
+
+        persisted.Should().HaveCount(2);
+        persisted.Should().Contain(a => a.CategoryId == 1 && a.SubmittedAnswer == "Apple");
+        persisted.Should().Contain(a => a.CategoryId == 2 && a.SubmittedAnswer == "Banana");
     }
 
     public void Dispose()
