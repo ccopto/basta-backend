@@ -57,13 +57,17 @@ public class GameOperationServiceTests : IDisposable
         result.HostUserId.Should().BeGreaterThan(0);
 
         // Assert — User was persisted
-        var user = await _context.Users.FindAsync(result.HostUserId);
+        var user = await _context.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.UserId == result.HostUserId);
         user.Should().NotBeNull();
         user!.Nickname.Should().Be("Alice");
         user.PreferredLanguage.Should().Be("en");
 
         // Assert — Game was persisted
-        var game = await _context.Games.FindAsync(result.GameCode);
+        var game = await _context.Games
+            .AsNoTracking()
+            .FirstOrDefaultAsync(g => g.GameId == result.GameCode);
         game.Should().NotBeNull();
         game!.HostUserId.Should().Be(result.HostUserId);
         game.TotalRounds.Should().Be(5);
@@ -71,6 +75,7 @@ public class GameOperationServiceTests : IDisposable
 
         // Assert — Host was added as a GamePlayer
         var player = await _context.GamePlayers
+            .AsNoTracking()
             .FirstOrDefaultAsync(p => p.GameId == result.GameCode && p.UserId == result.HostUserId);
         player.Should().NotBeNull();
 
@@ -144,10 +149,14 @@ public class GameOperationServiceTests : IDisposable
         joinResult.UserId.Should().NotBe(createResult.HostUserId);
 
         // Assert DB
-        var user = await _context.Users.FindAsync(joinResult.UserId);
+        var user = await _context.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.UserId == joinResult.UserId);
         user!.Nickname.Should().Be("Guest");
 
-        var map = await _context.GamePlayers.FirstOrDefaultAsync(p => p.GameId == createResult.GameCode && p.UserId == joinResult.UserId);
+        var map = await _context.GamePlayers
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.GameId == createResult.GameCode && p.UserId == joinResult.UserId);
         map.Should().NotBeNull();
 
         // Assert Memory
@@ -171,6 +180,7 @@ public class GameOperationServiceTests : IDisposable
 
         // Assert
         var persisted = await _context.RoundAnswers
+            .AsNoTracking()
             .Where(a => a.GameId == result.GameCode && a.UserId == result.HostUserId)
             .ToListAsync();
 
