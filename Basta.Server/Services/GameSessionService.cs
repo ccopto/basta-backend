@@ -171,7 +171,8 @@ public class GameSessionService : IGameSessionService
                 TimerDuration = session.TimerDuration,
                 Language = string.Empty,
                 State = "Lobby",
-                Players = players
+                Players = players,
+                SelectedCategoryIds = session.SelectedCategoryIds
             };
         }
     }
