@@ -18,4 +18,5 @@ public class LobbySnapshot
     public string Language { get; set; } = string.Empty;
     public string State { get; set; } = "Lobby";
     public IEnumerable<LobbyPlayer> Players { get; set; } = Enumerable.Empty<LobbyPlayer>();
+    public List<int> SelectedCategoryIds { get; set; } = new();
 }

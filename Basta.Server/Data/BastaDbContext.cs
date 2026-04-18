@@ -14,6 +14,7 @@ public class BastaDbContext : DbContext
     public DbSet<Game> Games => Set<Game>();
     public DbSet<GamePlayer> GamePlayers => Set<GamePlayer>();
     public DbSet<Category> Categories => Set<Category>();
+    public DbSet<RoundAnswer> RoundAnswers => Set<RoundAnswer>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -75,6 +76,24 @@ public class BastaDbContext : DbContext
                 new Category { CategoryId = 7, EnglishName = "Profession", SpanishName = "Profesión" },
                 new Category { CategoryId = 8, EnglishName = "Brand", SpanishName = "Marca" }
             );
+        });
+
+        modelBuilder.Entity<RoundAnswer>(entity =>
+        {
+            entity.HasKey(e => e.RoundAnswerId);
+
+            // Ensure a player can only have one answer per category in a round
+            entity.HasIndex(e => new { e.GameId, e.RoundNumber, e.UserId, e.CategoryId }).IsUnique();
+
+            entity.HasOne(d => d.Game)
+                .WithMany()
+                .HasForeignKey(d => d.GameId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(d => d.User)
+                .WithMany()
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

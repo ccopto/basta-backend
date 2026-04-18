@@ -141,4 +141,92 @@ public class GameSessionServiceTests
         result.Should().BeFalse();
         errorMessage.Should().Be("Game session not found.");
     }
+
+    [Fact]
+    public void StartNextRound_PicksLetterAndUpdatesState()
+    {
+        // Arrange
+        var code = _sut.CreateSession(1, 5, 60, new List<int> { 1 });
+
+        // Act
+        var (letter, _) = _sut.StartNextRound(code);
+
+        // Assert
+        letter.Should().NotBeNull();
+        var session = _sut.TryGetSession(code);
+        session!.CurrentRound.Should().Be(1);
+        session.CurrentLetter.Should().Be(letter);
+        session.UsedLetters.Should().Contain(letter.Value);
+        session.RoundActive.Should().BeTrue();
+        session.RoundLocked.Should().BeFalse();
+    }
+
+    [Fact]
+    public void StartNextRound_ReturnsNull_WhenNoLettersLeft()
+    {
+        // Arrange
+        var code = _sut.CreateSession(1, 100, 60, new List<int> { 1 });
+        const string alphabet = "ABCDEFGHJKLMNPRSTUWXY"; // 21 letters
+        for (int i = 0; i < alphabet.Length; i++)
+        {
+            _sut.StartNextRound(code);
+        }
+
+        // Act
+        var (letter, _) = _sut.StartNextRound(code);
+
+        // Assert
+        letter.Should().BeNull();
+    }
+
+    [Fact]
+    public void LockRound_UpdatesStateAndClearsTimer()
+    {
+        // Arrange
+        var code = _sut.CreateSession(1, 5, 60, new List<int> { 1 });
+        _sut.StartNextRound(code);
+
+        // Act
+        _sut.LockRound(code);
+
+        // Assert
+        var session = _sut.TryGetSession(code);
+        session!.RoundLocked.Should().BeTrue();
+        session.RoundActive.Should().BeFalse();
+    }
+
+    [Fact]
+    public void TrySubmitAnswers_RecordsAnswers_WhenNotLocked()
+    {
+        // Arrange
+        var code = _sut.CreateSession(1, 5, 60, new List<int> { 1 });
+        _sut.StartNextRound(code);
+        var answers = new Dictionary<int, string> { { 1, "Apple" } };
+
+        // Act
+        var result = _sut.TrySubmitAnswers(code, 2, answers);
+
+        // Assert
+        result.Should().BeTrue();
+        var session = _sut.TryGetSession(code);
+        session!.CurrentRoundAnswers.Should().ContainKey(2).WhoseValue.Should().BeEquivalentTo(answers);
+    }
+
+    [Fact]
+    public void TrySubmitAnswers_Fails_WhenRoundLocked()
+    {
+        // Arrange
+        var code = _sut.CreateSession(1, 5, 60, new List<int> { 1 });
+        _sut.StartNextRound(code);
+        _sut.LockRound(code);
+        var answers = new Dictionary<int, string> { { 1, "Apple" } };
+
+        // Act
+        var result = _sut.TrySubmitAnswers(code, 2, answers);
+
+        // Assert
+        result.Should().BeFalse();
+        var session = _sut.TryGetSession(code);
+        session!.CurrentRoundAnswers.Should().NotContainKey(2);
+    }
 }

@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Basta.Server.Models;
 
 public class GameSession
@@ -10,13 +12,18 @@ public class GameSession
     public char? CurrentLetter { get; set; } 
     public bool RoundLocked { get; set; } = false;
 
+    // Status to track if a round is currently running on the server
+    public bool RoundActive { get; set; } = false;
+
     // We can hold connected players in future stories.
     public Dictionary<int, string> Players { get; set; } = new();
     
-    // Letters that have been generated in past rounds
     public HashSet<char> UsedLetters { get; set; } = new();
 
     // Category IDs selected by the host for this session
     public List<int> SelectedCategoryIds { get; set; } = new();
-}
 
+    // Tracks answers per userId per category for the current round
+    // Key: UserId, Value: dict of categoryId -> answer string
+    public Dictionary<int, Dictionary<int, string>> CurrentRoundAnswers { get; set; } = new();
+}

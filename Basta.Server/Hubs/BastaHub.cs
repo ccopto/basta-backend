@@ -7,10 +7,17 @@ namespace Basta.Server.Hubs;
 public class BastaHub : Hub
 {
     private readonly IGameSessionService _gameSessionService;
+    private readonly IGameOperationService _gameOperationService;
+    private readonly ILogger<BastaHub> _logger;
 
-    public BastaHub(IGameSessionService gameSessionService)
+    public BastaHub(
+        IGameSessionService gameSessionService, 
+        IGameOperationService gameOperationService,
+        ILogger<BastaHub> logger)
     {
         _gameSessionService = gameSessionService;
+        _gameOperationService = gameOperationService;
+        _logger = logger;
     }
 
     public async Task JoinGame(string code, int userId, string nickname)
@@ -44,8 +51,11 @@ public class BastaHub : Hub
                 {
                     if (session.SelectedCategoryIds.Count >= 1)
                     {
-                        // Broadcast game start to all players in the room
+                        // 1. Broadcast game start to all players in the room
                         await Clients.Group(code).SendAsync("GameStarted");
+
+                        // 2. Automatically trigger the first round
+                        await StartRoundInternal(code);
                     }
                     else
                     {
@@ -66,6 +76,108 @@ public class BastaHub : Hub
         {
             await Clients.Caller.SendAsync("Error", "You must join a game first.");
         }
+    }
+
+    public async Task StartRound()
+    {
+        if (Context.Items.TryGetValue("GameCode", out var codeObj) && codeObj is string code &&
+            Context.Items.TryGetValue("UserId", out var userIdObj) && userIdObj is int userId)
+        {
+            var session = _gameSessionService.TryGetSession(code);
+            if (session != null && session.HostUserId == userId)
+            {
+                await StartRoundInternal(code);
+            }
+        }
+    }
+
+    public async Task CallBasta()
+    {
+        if (Context.Items.TryGetValue("GameCode", out var codeObj) && codeObj is string code &&
+            Context.Items.TryGetValue("UserId", out var userIdObj) && userIdObj is int userId)
+        {
+            var session = _gameSessionService.TryGetSession(code);
+            if (session != null && session.RoundActive && !session.RoundLocked)
+            {
+                var nickname = session.Players.GetValueOrDefault(userId, "Someone");
+                await LockRoundInternal(code, nickname);
+            }
+        }
+    }
+
+    public async Task SubmitAnswers(Dictionary<int, string> answers)
+    {
+        if (Context.Items.TryGetValue("GameCode", out var codeObj) && codeObj is string code &&
+            Context.Items.TryGetValue("UserId", out var userIdObj) && userIdObj is int userId)
+        {
+            var session = _gameSessionService.TryGetSession(code);
+            if (session != null)
+            {
+                // 1. First record in-memory. This checks if the round is already locked.
+                if (_gameSessionService.TrySubmitAnswers(code, userId, answers))
+                {
+                    try
+                    {
+                        // 2. Persist to DB for posterity and scoring
+                        await _gameOperationService.SubmitAnswersAsync(code, session.CurrentRound, userId, answers);
+                    }
+                    catch (Microsoft.EntityFrameworkCore.DbUpdateException ex)
+                    {
+                        // Handle race condition: If another thread already persisted for this (Game, Round, User, Category),
+                        // we treat it as idempotent and just log a warning.
+                        _logger.LogWarning(ex, "Duplicate submission detected for Game {Code}, Round {Round}, User {UserId}. Ignoring.", 
+                            code, session.CurrentRound, userId);
+                    }
+                }
+            }
+        }
+    }
+
+    private async Task StartRoundInternal(string code)
+    {
+        var session = _gameSessionService.TryGetSession(code);
+        if (session == null) return;
+
+        var (letter, cancellationToken) = _gameSessionService.StartNextRound(code);
+        if (letter == null)
+        {
+            await Clients.Group(code).SendAsync("Error", "No more letters available.");
+            return;
+        }
+
+        await Clients.Group(code).SendAsync("RoundStarted", new
+        {
+            roundNumber = session.CurrentRound,
+            letter = letter.ToString(),
+            timerDuration = session.TimerDuration,
+            serverTime = DateTime.UtcNow.ToString("o")
+        });
+
+        // Run the background timer task for Option A
+        // Using the token provided by the session service
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(session.TimerDuration * 1000, cancellationToken);
+                // If we reach here, the timer expired naturally
+                await LockRoundInternal(code, "Timer");
+            }
+            catch (TaskCanceledException)
+            {
+                // Round was locked via "Basta!" call by a player
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Background timer task failed for Game {Code}, Round {Round}", code, session.CurrentRound);
+            }
+        });
+    }
+
+    private async Task LockRoundInternal(string code, string nickname)
+    {
+        _gameSessionService.LockRound(code);
+        await Clients.Group(code).SendAsync("RoundStopped", new { callerNickname = nickname });
     }
 
     public async Task SetCategories(List<int> categoryIds)

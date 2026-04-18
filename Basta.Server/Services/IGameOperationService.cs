@@ -21,6 +21,13 @@ public interface IGameOperationService
         string nickname,
         string preferredLanguage,
         CancellationToken cancellationToken = default);
+
+    Task SubmitAnswersAsync(
+        string code,
+        int roundNumber,
+        int userId,
+        Dictionary<int, string> answers,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>

@@ -7,6 +7,7 @@ namespace Basta.Server.Services;
 public class GameSessionService : IGameSessionService
 {
     private readonly ConcurrentDictionary<string, GameSession> _sessions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, CancellationTokenSource> _roundTimers = new(StringComparer.OrdinalIgnoreCase);
 
     public string CreateSession(int hostUserId, int totalRounds, int timerDuration, List<int> categoryIds)
     {
@@ -85,6 +86,76 @@ public class GameSessionService : IGameSessionService
         }
     }
 
+    public (char? letter, CancellationToken cancellationToken) StartNextRound(string code)
+    {
+        if (!_sessions.TryGetValue(code, out var session)) 
+            return (null, CancellationToken.None);
+
+        lock (session)
+        {
+            const string alphabet = "ABCDEFGHJKLMNPRSTUWXY";
+            var availableLetters = alphabet.Where(c => !session.UsedLetters.Contains(c)).ToList();
+
+            if (availableLetters.Count == 0) 
+                return (null, CancellationToken.None);
+
+            var selectedLetter = availableLetters[Random.Shared.Next(availableLetters.Count)];
+            
+            session.CurrentRound++;
+            session.CurrentLetter = selectedLetter;
+            session.UsedLetters.Add(selectedLetter);
+            session.RoundActive = true;
+            session.RoundLocked = false;
+            session.CurrentRoundAnswers.Clear();
+            
+            // Create and store the Round CTS
+            var cts = new CancellationTokenSource();
+            _roundTimers.AddOrUpdate(code, cts, (_, old) => {
+                old.Cancel();
+                old.Dispose();
+                return cts;
+            });
+            
+            return (selectedLetter, cts.Token);
+        }
+    }
+
+    public void LockRound(string code)
+    {
+        if (_sessions.TryGetValue(code, out var session))
+        {
+            lock (session)
+            {
+                session.RoundLocked = true;
+                session.RoundActive = false;
+                
+                // Cancel and dispose the CTS from our internal tracking
+                if (_roundTimers.TryRemove(code, out var cts))
+                {
+                    try {
+                        cts.Cancel();
+                        cts.Dispose();
+                    } catch { /* Suppress disposal/cancellation errors */ }
+                }
+            }
+        }
+    }
+
+    public bool TrySubmitAnswers(string code, int userId, Dictionary<int, string> answers)
+    {
+        if (!_sessions.TryGetValue(code, out var session)) return false;
+
+        lock (session)
+        {
+            // If the round is already locked, we reject the submission
+            if (session.RoundLocked) return false;
+
+            // Record the answers for this user
+            session.CurrentRoundAnswers[userId] = answers;
+            return true;
+        }
+    }
+
     public LobbySnapshot? GetLobbySnapshot(string code)
     {
         if (!_sessions.TryGetValue(code, out var session))
@@ -111,7 +182,8 @@ public class GameSessionService : IGameSessionService
                 TimerDuration = session.TimerDuration,
                 Language = string.Empty,
                 State = "Lobby",
-                Players = players
+                Players = players,
+                SelectedCategoryIds = session.SelectedCategoryIds
             };
         }
     }
