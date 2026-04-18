@@ -149,7 +149,7 @@ public class GameSessionServiceTests
         var code = _sut.CreateSession(1, 5, 60, new List<int> { 1 });
 
         // Act
-        var letter = _sut.StartNextRound(code);
+        var (letter, _) = _sut.StartNextRound(code);
 
         // Assert
         letter.Should().NotBeNull();
@@ -167,13 +167,13 @@ public class GameSessionServiceTests
         // Arrange
         var code = _sut.CreateSession(1, 100, 60, new List<int> { 1 });
         const string alphabet = "ABCDEFGHJKLMNPRSTUWXY"; // 21 letters
-        for (int i = 0; i < 21; i++)
+        for (int i = 0; i < alphabet.Length; i++)
         {
             _sut.StartNextRound(code);
         }
 
         // Act
-        var letter = _sut.StartNextRound(code);
+        var (letter, _) = _sut.StartNextRound(code);
 
         // Assert
         letter.Should().BeNull();
