@@ -188,7 +188,42 @@ public class GameSessionService : IGameSessionService
         }
     }
 
+    public const int MinRounds = 1;
+    public const int MaxRounds = 20;
+    public const int MinTimer = 30;
+    public const int MaxTimer = 120;
+
+    public void UpdateSessionSettings(string code, int totalRounds, int timerDuration, List<int> categoryIds)
+    {
+        if (categoryIds == null || !categoryIds.Any())
+        {
+            throw new ArgumentException("At least one category must be selected.", nameof(categoryIds));
+        }
+
+        if (totalRounds < MinRounds || totalRounds > MaxRounds)
+        {
+            throw new ArgumentOutOfRangeException(nameof(totalRounds), $"Total rounds must be between {MinRounds} and {MaxRounds}.");
+        }
+
+        if (timerDuration < MinTimer || timerDuration > MaxTimer)
+        {
+            throw new ArgumentOutOfRangeException(nameof(timerDuration), $"Timer duration must be between {MinTimer} and {MaxTimer} seconds.");
+        }
+
+        if (_sessions.TryGetValue(code, out var session))
+        {
+            lock (session)
+            {
+                session.TotalRounds = totalRounds;
+                session.TimerDuration = timerDuration;
+                session.SelectedCategoryIds = categoryIds;
+            }
+        }
+    }
+
+
     private static string GenerateCode()
+
     {
         // Excludes visually ambiguous characters: I, O, Q, V, Z
         const string chars = "ABCDEFGHJKLMNPRSTUWXY";

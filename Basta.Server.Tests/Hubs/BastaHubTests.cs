@@ -121,4 +121,73 @@ public class BastaHubTests
         _mockSessionService.Verify(s => s.LockRound(code), Times.Once);
         _mockClientProxy.Verify(p => p.SendCoreAsync("RoundStopped", It.Is<object?[]>(o => o.Length > 0 && o[0] != null && o[0]!.ToString()!.Contains("Nick")), default), Times.Once);
     }
+
+    [Fact]
+    public async Task UpdateGameSettings_CallsService_WhenHost()
+
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 1;
+        var session = new GameSession { HostUserId = userId };
+        var rounds = 10;
+        var timer = 45;
+        var categories = new List<int> { 1, 2 };
+
+        var items = new Dictionary<object, object?> { { "GameCode", code }, { "UserId", userId } };
+        _mockContext.Setup(c => c.Items).Returns(items);
+        _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
+
+        // Act
+        await _sut.UpdateGameSettings(rounds, timer, categories);
+
+        // Assert
+        _mockSessionService.Verify(s => s.UpdateSessionSettings(code, rounds, timer, categories), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateGameSettings_DoesNotCallService_WhenNotHost()
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 2;
+        var hostUserId = 1; // Not the caller
+        var session = new GameSession { HostUserId = hostUserId };
+
+        var items = new Dictionary<object, object?> { { "GameCode", code }, { "UserId", userId } };
+        _mockContext.Setup(c => c.Items).Returns(items);
+        _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
+
+        // Act
+        await _sut.UpdateGameSettings(5, 60, new List<int> { 1 });
+
+        // Assert
+        _mockSessionService.Verify(s => s.UpdateSessionSettings(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<List<int>>()), Times.Never);
+        _mockSingleClientProxy.Verify(p => p.SendCoreAsync("Error", It.Is<object?[]>(o => o.Length > 0 && o[0]!.ToString()!.Contains("Only the host")), default), Times.Once);
+    }
+
+
+    [Fact]
+    public async Task SubmitAnswers_CallsServiceAndOperationService()
+    {
+
+        // Arrange
+        var code = "ABCD";
+        var userId = 1;
+        var currentRound = 2;
+        var session = new GameSession { Code = code, CurrentRound = currentRound };
+        var answers = new Dictionary<int, string> { { 1, "Answer" } };
+
+        var items = new Dictionary<object, object?> { { "GameCode", code }, { "UserId", userId } };
+        _mockContext.Setup(c => c.Items).Returns(items);
+        _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
+        _mockSessionService.Setup(s => s.TrySubmitAnswers(code, userId, answers)).Returns(true);
+
+        // Act
+        await _sut.SubmitAnswers(answers);
+
+        // Assert
+        _mockSessionService.Verify(s => s.TrySubmitAnswers(code, userId, answers), Times.Once);
+        _mockOperationService.Verify(s => s.SubmitAnswersAsync(code, currentRound, userId, answers), Times.Once);
+    }
 }
