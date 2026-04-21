@@ -180,7 +180,7 @@ public class BastaHub : Hub
         await Clients.Group(code).SendAsync("RoundStopped", new { callerNickname = nickname });
     }
 
-    public async Task SetCategories(List<int> categoryIds)
+    public async Task UpdateGameSettings(int totalRounds, int timerDuration, List<int> categoryIds)
     {
         if (Context.Items.TryGetValue("GameCode", out var codeObj) && codeObj is string code &&
             Context.Items.TryGetValue("UserId", out var userIdObj) && userIdObj is int userId)
@@ -188,10 +188,11 @@ public class BastaHub : Hub
             var session = _gameSessionService.TryGetSession(code);
             if (session != null && session.HostUserId == userId)
             {
-                session.SelectedCategoryIds = categoryIds;
+                _gameSessionService.UpdateSessionSettings(code, totalRounds, timerDuration, categoryIds);
             }
         }
     }
+
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
