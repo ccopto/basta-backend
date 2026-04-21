@@ -229,4 +229,25 @@ public class GameSessionServiceTests
         var session = _sut.TryGetSession(code);
         session!.CurrentRoundAnswers.Should().NotContainKey(2);
     }
+
+    [Fact]
+    public void UpdateSessionSettings_UpdatesValuesCorrectly()
+    {
+        // Arrange
+        var code = _sut.CreateSession(1, 5, 60, new List<int> { 1 });
+        var newRounds = 10;
+        var newTimer = 30;
+        var newCategories = new List<int> { 2, 3 };
+
+        // Act
+        _sut.UpdateSessionSettings(code, newRounds, newTimer, newCategories);
+
+        // Assert
+        var session = _sut.TryGetSession(code);
+        session.Should().NotBeNull();
+        session!.TotalRounds.Should().Be(newRounds);
+        session.TimerDuration.Should().Be(newTimer);
+        session.SelectedCategoryIds.Should().BeEquivalentTo(newCategories);
+    }
 }
+

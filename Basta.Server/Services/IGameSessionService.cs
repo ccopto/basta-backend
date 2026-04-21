@@ -47,4 +47,10 @@ public interface IGameSessionService
     /// Returns false if the round is already locked.
     /// </summary>
     bool TrySubmitAnswers(string code, int userId, Dictionary<int, string> answers);
+
+    /// <summary>
+    /// Updates the game session settings (rounds, timer, categories).
+    /// </summary>
+    void UpdateSessionSettings(string code, int totalRounds, int timerDuration, List<int> categoryIds);
 }
+

@@ -188,7 +188,21 @@ public class GameSessionService : IGameSessionService
         }
     }
 
+    public void UpdateSessionSettings(string code, int totalRounds, int timerDuration, List<int> categoryIds)
+    {
+        if (_sessions.TryGetValue(code, out var session))
+        {
+            lock (session)
+            {
+                session.TotalRounds = totalRounds;
+                session.TimerDuration = timerDuration;
+                session.SelectedCategoryIds = categoryIds;
+            }
+        }
+    }
+
     private static string GenerateCode()
+
     {
         // Excludes visually ambiguous characters: I, O, Q, V, Z
         const string chars = "ABCDEFGHJKLMNPRSTUWXY";
