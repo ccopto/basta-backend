@@ -180,18 +180,37 @@ public class BastaHub : Hub
         await Clients.Group(code).SendAsync("RoundStopped", new { callerNickname = nickname });
     }
 
+    /// <summary>
+    /// Updates the game session settings (rounds, timer, categories) for the current lobby.
+    /// Only the host can perform this action.
+    /// </summary>
     public async Task UpdateGameSettings(int totalRounds, int timerDuration, List<int> categoryIds)
     {
         if (Context.Items.TryGetValue("GameCode", out var codeObj) && codeObj is string code &&
             Context.Items.TryGetValue("UserId", out var userIdObj) && userIdObj is int userId)
         {
             var session = _gameSessionService.TryGetSession(code);
-            if (session != null && session.HostUserId == userId)
+            if (session != null)
             {
-                _gameSessionService.UpdateSessionSettings(code, totalRounds, timerDuration, categoryIds);
+                if (session.HostUserId == userId)
+                {
+                    try
+                    {
+                        _gameSessionService.UpdateSessionSettings(code, totalRounds, timerDuration, categoryIds);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        await Clients.Caller.SendAsync("Error", ex.Message);
+                    }
+                }
+                else
+                {
+                    await Clients.Caller.SendAsync("Error", "Only the host can update game settings.");
+                }
             }
         }
     }
+
 
 
     public override async Task OnDisconnectedAsync(Exception? exception)
