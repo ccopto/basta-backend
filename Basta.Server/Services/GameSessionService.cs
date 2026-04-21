@@ -127,6 +127,7 @@ public class GameSessionService : IGameSessionService
             lock (session)
             {
                 session.RoundLocked = true;
+                session.RoundLockedAt = DateTimeOffset.UtcNow;
                 session.RoundActive = false;
                 
                 // Cancel and dispose the CTS from our internal tracking
@@ -147,8 +148,15 @@ public class GameSessionService : IGameSessionService
 
         lock (session)
         {
-            // If the round is already locked, we reject the submission
-            if (session.RoundLocked) return false;
+            // If the round is locked, we only allow a 3-second grace period for in-flight submissions
+            if (session.RoundLocked)
+            {
+                var gracePeriod = TimeSpan.FromSeconds(3);
+                if (session.RoundLockedAt == null || DateTimeOffset.UtcNow - session.RoundLockedAt > gracePeriod)
+                {
+                    return false;
+                }
+            }
 
             // Record the answers for this user
             session.CurrentRoundAnswers[userId] = answers;
