@@ -213,22 +213,49 @@ public class GameSessionServiceTests
     }
 
     [Fact]
-    public void TrySubmitAnswers_Fails_WhenRoundLocked()
+    public void TrySubmitAnswers_AcceptsWithinGracePeriod()
     {
         // Arrange
         var code = _sut.CreateSession(1, 5, 60, new List<int> { 1 });
         _sut.StartNextRound(code);
         _sut.LockRound(code);
+        
+        var session = _sut.TryGetSession(code);
+        // Manually set lock time to 1 second ago (Grace period is 3s)
+        session!.RoundLockedAt = DateTimeOffset.UtcNow.AddSeconds(-1);
+        
         var answers = new Dictionary<int, string> { { 1, "Apple" } };
-
+        
         // Act
         var result = _sut.TrySubmitAnswers(code, 2, answers);
+        
+        // Assert
+        result.Should().BeTrue();
+        session.CurrentRoundAnswers.Should().ContainKey(2);
+    }
 
+    [Fact]
+    public void TrySubmitAnswers_RejectsAfterGracePeriod()
+    {
+        // Arrange
+        var code = _sut.CreateSession(1, 5, 60, new List<int> { 1 });
+        _sut.StartNextRound(code);
+        _sut.LockRound(code);
+        
+        var session = _sut.TryGetSession(code);
+        // Manually set lock time to 4 seconds ago (Grace period is 3s)
+        session!.RoundLockedAt = DateTimeOffset.UtcNow.AddSeconds(-4);
+        
+        var answers = new Dictionary<int, string> { { 1, "Apple" } };
+        
+        // Act
+        var result = _sut.TrySubmitAnswers(code, 2, answers);
+        
         // Assert
         result.Should().BeFalse();
-        var session = _sut.TryGetSession(code);
-        session!.CurrentRoundAnswers.Should().NotContainKey(2);
+        session.CurrentRoundAnswers.Should().NotContainKey(2);
     }
+
 
     [Fact]
     public void UpdateSessionSettings_UpdatesValuesCorrectly()

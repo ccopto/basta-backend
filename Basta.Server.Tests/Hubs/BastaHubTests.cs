@@ -81,8 +81,10 @@ public class BastaHubTests
             HostUserId = userId, 
             Players = new Dictionary<int, string> { { 1, "H" }, { 2, "P2" } },
             SelectedCategoryIds = new List<int> { 1 },
-            TimerDuration = 60
+            TimerDuration = 60,
+            TotalRounds = 5
         };
+
 
         var items = new Dictionary<object, object?> { { "GameCode", code }, { "UserId", userId } };
         _mockContext.Setup(c => c.Items).Returns(items);
@@ -190,4 +192,59 @@ public class BastaHubTests
         _mockSessionService.Verify(s => s.TrySubmitAnswers(code, userId, answers), Times.Once);
         _mockOperationService.Verify(s => s.SubmitAnswersAsync(code, currentRound, userId, answers), Times.Once);
     }
+
+    [Fact]
+    public async Task StartGame_BroadcastsGameOver_WhenNoLetters()
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 1;
+        var session = new GameSession 
+        { 
+            HostUserId = userId, 
+            Players = new Dictionary<int, string> { { 1, "H" }, { 2, "P2" } },
+            SelectedCategoryIds = new List<int> { 1 },
+            TotalRounds = 5,
+            CurrentRound = 0
+        };
+
+        var items = new Dictionary<object, object?> { { "GameCode", code }, { "UserId", userId } };
+        _mockContext.Setup(c => c.Items).Returns(items);
+        _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
+        _mockSessionService.Setup(s => s.StartNextRound(code)).Returns(((char?)null, CancellationToken.None));
+
+        // Act
+        await _sut.StartGame();
+
+        // Assert
+        _mockClientProxy.Verify(p => p.SendCoreAsync("GameOver", It.Is<object?[]>(o => o[0]!.ToString()!.Contains("No more letters")), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task StartGame_BroadcastsGameOver_WhenRoundsExceeded()
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 1;
+        var session = new GameSession 
+        { 
+            HostUserId = userId, 
+            Players = new Dictionary<int, string> { { 1, "H" }, { 2, "P2" } },
+            SelectedCategoryIds = new List<int> { 1 },
+            TotalRounds = 5,
+            CurrentRound = 5 // Already at max
+        };
+
+        var items = new Dictionary<object, object?> { { "GameCode", code }, { "UserId", userId } };
+        _mockContext.Setup(c => c.Items).Returns(items);
+        _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
+
+        // Act
+        await _sut.StartGame();
+
+        // Assert
+        _mockClientProxy.Verify(p => p.SendCoreAsync("GameOver", It.Is<object?[]>(o => o[0]!.ToString()!.Contains("All rounds completed")), default), Times.Once);
+        _mockSessionService.Verify(s => s.StartNextRound(It.IsAny<string>()), Times.Never);
+    }
 }
+
