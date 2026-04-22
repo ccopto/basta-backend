@@ -1,6 +1,8 @@
 using Basta.Server.Data;
 using Basta.Server.DTOs;
 using Basta.Server.Entities;
+using Microsoft.EntityFrameworkCore;
+
 
 namespace Basta.Server.Services;
 
@@ -169,4 +171,30 @@ public class GameOperationService : IGameOperationService
         _context.RoundAnswers.AddRange(roundAnswers);
         await _context.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task UpdateValidationAsync(
+        string gameId, 
+        int roundNumber, 
+        int userId, 
+        Dictionary<int, bool> validations,
+        CancellationToken cancellationToken = default)
+    {
+        // 1. Fetch all answers for this player in this round
+        var answers = await _context.RoundAnswers
+            .Where(a => a.GameId == gameId && a.RoundNumber == roundNumber && a.UserId == userId)
+            .ToListAsync(cancellationToken);
+
+        // 2. Update the IsValid flag for each one
+        foreach (var answer in answers)
+        {
+            if (validations.TryGetValue(answer.CategoryId, out var isValid))
+            {
+                answer.IsValid = isValid;
+            }
+        }
+
+        // 3. Persist changes
+        await _context.SaveChangesAsync(cancellationToken);
+    }
 }
+

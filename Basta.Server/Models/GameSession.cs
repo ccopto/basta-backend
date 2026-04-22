@@ -28,4 +28,8 @@ public class GameSession
     // Tracks answers per userId per category for the current round
     // Key: UserId, Value: dict of categoryId -> answer string
     public Dictionary<int, Dictionary<int, string>> CurrentRoundAnswers { get; set; } = new();
+
+    // Tracks which players have submitted their self-validation for the current round
+    public HashSet<int> PlayersValidated { get; set; } = new();
 }
+

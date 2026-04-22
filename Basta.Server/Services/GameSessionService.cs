@@ -121,6 +121,8 @@ public class GameSessionService : IGameSessionService
             session.RoundActive = true;
             session.RoundLocked = false;
             session.CurrentRoundAnswers.Clear();
+            session.PlayersValidated.Clear();
+
             
             // Create and store the Round CTS
             var cts = new CancellationTokenSource();
@@ -143,6 +145,7 @@ public class GameSessionService : IGameSessionService
                 session.RoundLocked = true;
                 session.RoundLockedAt = _timeProvider.GetUtcNow();
                 session.RoundActive = false;
+                session.PlayersValidated.Clear();
                 
                 // Cancel and dispose the CTS from our internal tracking
                 if (_roundTimers.TryRemove(code, out var cts))
@@ -249,9 +252,41 @@ public class GameSessionService : IGameSessionService
         }
     }
 
+    public bool CheckAllAnswersSubmitted(string code)
+    {
+        if (!_sessions.TryGetValue(code, out var session)) return false;
+        lock (session)
+        {
+            return session.CurrentRoundAnswers.Count >= session.Players.Count;
+        }
+    }
+
+    public RoundAnswersDto GetCurrentRoundAnswers(string code)
+    {
+        if (!_sessions.TryGetValue(code, out var session)) return new RoundAnswersDto(new());
+        lock (session)
+        {
+            var players = session.Players.Select(p => new PlayerAnswersDto(
+                p.Key,
+                p.Value,
+                session.CurrentRoundAnswers.GetValueOrDefault(p.Key, new())
+            )).ToList();
+
+            return new RoundAnswersDto(players);
+        }
+    }
+
+    public bool SubmitValidation(string code, int userId)
+    {
+        if (!_sessions.TryGetValue(code, out var session)) return false;
+        lock (session)
+        {
+            session.PlayersValidated.Add(userId);
+            return session.PlayersValidated.Count >= session.Players.Count;
+        }
+    }
 
     private static string GenerateCode()
-
     {
         // Excludes visually ambiguous characters: I, O, Q, V, Z
         const string chars = "ABCDEFGHJKLMNPRSTUWXY";

@@ -28,7 +28,18 @@ public interface IGameOperationService
         int userId,
         Dictionary<int, string> answers,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Persists validation results (IsValid flag) for a player's answers in a round.
+    /// </summary>
+    Task UpdateValidationAsync(
+        string gameId, 
+        int roundNumber, 
+        int userId, 
+        Dictionary<int, bool> validations,
+        CancellationToken cancellationToken = default);
 }
+
 
 /// <summary>
 /// Represents the result of a successful game creation operation.

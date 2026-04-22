@@ -58,8 +58,12 @@ builder.Services.AddSingleton<IGameSessionService, GameSessionService>();
 // Register Game Operation Service (Scoped: wraps a DbContext transaction per request)
 builder.Services.AddScoped<IGameOperationService, GameOperationService>();
 
+// Register Scoring Service (Scoped: performs point calculation and DB updates)
+builder.Services.AddScoped<IScoringService, ScoringService>();
+
 // Register TimeProvider for testable time-dependent logic
 builder.Services.AddSingleton(TimeProvider.System);
+
 
 
 var app = builder.Build();
