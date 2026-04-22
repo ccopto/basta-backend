@@ -8,6 +8,14 @@ public class GameSessionService : IGameSessionService
 {
     private readonly ConcurrentDictionary<string, GameSession> _sessions = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _roundTimers = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ILogger<GameSessionService> _logger;
+    private readonly TimeProvider _timeProvider;
+
+    public GameSessionService(ILogger<GameSessionService> logger, TimeProvider? timeProvider = null)
+    {
+        _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
 
     public string CreateSession(int hostUserId, int totalRounds, int timerDuration, List<int> categoryIds)
     {
@@ -86,18 +94,24 @@ public class GameSessionService : IGameSessionService
         }
     }
 
-    public (char? letter, CancellationToken cancellationToken) StartNextRound(string code)
+    public (char? letter, CancellationToken cancellationToken, string? gameOverReason) StartNextRound(string code)
     {
         if (!_sessions.TryGetValue(code, out var session)) 
-            return (null, CancellationToken.None);
+            return (null, CancellationToken.None, "Session not found.");
 
         lock (session)
         {
+            // 1. Check if we have already completed the intended number of rounds
+            if (session.CurrentRound >= session.TotalRounds)
+            {
+                return (null, CancellationToken.None, "All rounds completed.");
+            }
+
             const string alphabet = "ABCDEFGHJKLMNPRSTUWXY";
             var availableLetters = alphabet.Where(c => !session.UsedLetters.Contains(c)).ToList();
 
             if (availableLetters.Count == 0) 
-                return (null, CancellationToken.None);
+                return (null, CancellationToken.None, "No more letters available.");
 
             var selectedLetter = availableLetters[Random.Shared.Next(availableLetters.Count)];
             
@@ -116,7 +130,7 @@ public class GameSessionService : IGameSessionService
                 return cts;
             });
             
-            return (selectedLetter, cts.Token);
+            return (selectedLetter, cts.Token, null);
         }
     }
 
@@ -127,6 +141,7 @@ public class GameSessionService : IGameSessionService
             lock (session)
             {
                 session.RoundLocked = true;
+                session.RoundLockedAt = _timeProvider.GetUtcNow();
                 session.RoundActive = false;
                 
                 // Cancel and dispose the CTS from our internal tracking
@@ -147,8 +162,21 @@ public class GameSessionService : IGameSessionService
 
         lock (session)
         {
-            // If the round is already locked, we reject the submission
-            if (session.RoundLocked) return false;
+            // If the round is locked, we only allow a 3-second grace period for in-flight submissions
+            if (session.RoundLocked)
+            {
+                if (session.RoundLockedAt == null)
+                {
+                    _logger.LogWarning("Round is locked but RoundLockedAt is null for session {Code}. Rejecting submission.", code);
+                    return false;
+                }
+
+                var gracePeriod = TimeSpan.FromSeconds(3);
+                if (_timeProvider.GetUtcNow() - session.RoundLockedAt > gracePeriod)
+                {
+                    return false;
+                }
+            }
 
             // Record the answers for this user
             session.CurrentRoundAnswers[userId] = answers;

@@ -33,9 +33,10 @@ public interface IGameSessionService
     /// <summary>
     /// Starts the next round: picks a new letter, increments round counter,
     /// clears previous answers, and marks the round as active.
-    /// Returns the selected letter and a CancellationToken for the round timer.
+    /// Returns the selected letter, a CancellationToken for the round timer, and a game-over reason if applicable.
     /// </summary>
-    (char? letter, CancellationToken cancellationToken) StartNextRound(string code);
+    (char? letter, CancellationToken cancellationToken, string? gameOverReason) StartNextRound(string code);
+
 
     /// <summary>
     /// Marks the round as locked/stopped.

@@ -11,6 +11,8 @@ public class GameSession
     public int CurrentRound { get; set; } = 0;
     public char? CurrentLetter { get; set; } 
     public bool RoundLocked { get; set; } = false;
+    public DateTimeOffset? RoundLockedAt { get; set; }
+
 
     // Status to track if a round is currently running on the server
     public bool RoundActive { get; set; } = false;
