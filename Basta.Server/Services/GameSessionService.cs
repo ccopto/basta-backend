@@ -145,6 +145,7 @@ public class GameSessionService : IGameSessionService
                 session.RoundLocked = true;
                 session.RoundLockedAt = _timeProvider.GetUtcNow();
                 session.RoundActive = false;
+                session.PlayersValidated.Clear();
                 
                 // Cancel and dispose the CTS from our internal tracking
                 if (_roundTimers.TryRemove(code, out var cts))
@@ -260,13 +261,18 @@ public class GameSessionService : IGameSessionService
         }
     }
 
-    public Dictionary<int, Dictionary<int, string>> GetCurrentRoundAnswers(string code)
+    public RoundAnswersDto GetCurrentRoundAnswers(string code)
     {
-        if (!_sessions.TryGetValue(code, out var session)) return new();
+        if (!_sessions.TryGetValue(code, out var session)) return new RoundAnswersDto(new());
         lock (session)
         {
-            // Return a shallow copy of the dictionary
-            return new Dictionary<int, Dictionary<int, string>>(session.CurrentRoundAnswers);
+            var players = session.Players.Select(p => new PlayerAnswersDto(
+                p.Key,
+                p.Value,
+                session.CurrentRoundAnswers.GetValueOrDefault(p.Key, new())
+            )).ToList();
+
+            return new RoundAnswersDto(players);
         }
     }
 
@@ -280,10 +286,7 @@ public class GameSessionService : IGameSessionService
         }
     }
 
-
-
     private static string GenerateCode()
-
     {
         // Excludes visually ambiguous characters: I, O, Q, V, Z
         const string chars = "ABCDEFGHJKLMNPRSTUWXY";

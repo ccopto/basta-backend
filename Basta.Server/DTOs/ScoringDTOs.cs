@@ -13,3 +13,12 @@ public record AnswerScoreDto(
     bool IsValid, 
     int Points, 
     bool IsUnique);
+
+public record RoundAnswersDto(
+    List<PlayerAnswersDto> Players);
+
+public record PlayerAnswersDto(
+    int UserId,
+    string Nickname,
+    Dictionary<int, string> Answers);
+

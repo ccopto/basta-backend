@@ -16,6 +16,8 @@ public class ScoringService : IScoringService
 
     public async Task<List<PlayerScoreDto>> CalculateAndAwardPointsAsync(string gameId, int roundNumber, char roundLetter)
     {
+        using var tx = await _context.Database.BeginTransactionAsync();
+
         // 1. Fetch all players and their answers for the round
         var gamePlayers = await _context.GamePlayers
             .Include(gp => gp.User)
@@ -93,6 +95,7 @@ public class ScoringService : IScoringService
 
         // 3. Persist all updates (RoundAnswers.PointsAwarded and GamePlayers.CumulativeScore)
         await _context.SaveChangesAsync();
+        await tx.CommitAsync();
 
         return scores;
     }

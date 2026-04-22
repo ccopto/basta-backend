@@ -60,9 +60,10 @@ public interface IGameSessionService
     bool CheckAllAnswersSubmitted(string code);
 
     /// <summary>
-    /// Retrieves all answers submitted for the current round.
+    /// Retrieves all answers submitted for the current round, including player nicknames.
     /// </summary>
-    Dictionary<int, Dictionary<int, string>> GetCurrentRoundAnswers(string code);
+    RoundAnswersDto GetCurrentRoundAnswers(string code);
+
 
     /// <summary>
     /// Marks a user as having submitted their validation for the current round.

@@ -23,7 +23,6 @@ public class BastaHub : Hub
         _logger = logger;
     }
 
-
     public async Task JoinGame(string code, int userId, string nickname)
     {
         // 1. Add connection to the SignalR group for the specific game code.
@@ -250,10 +249,11 @@ public class BastaHub : Hub
                 }
             }
         }
+        else
+        {
+            throw new HubException("Not authenticated");
+        }
     }
-
-
-
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
