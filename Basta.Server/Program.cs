@@ -58,6 +58,10 @@ builder.Services.AddSingleton<IGameSessionService, GameSessionService>();
 // Register Game Operation Service (Scoped: wraps a DbContext transaction per request)
 builder.Services.AddScoped<IGameOperationService, GameOperationService>();
 
+// Register TimeProvider for testable time-dependent logic
+builder.Services.AddSingleton(TimeProvider.System);
+
+
 var app = builder.Build();
 
 // Global exception handler — returns RFC 7807 ProblemDetails JSON for any unhandled exception.

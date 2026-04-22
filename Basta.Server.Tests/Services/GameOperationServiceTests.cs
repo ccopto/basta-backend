@@ -3,7 +3,10 @@ using Basta.Server.Services;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Moq;
 using Xunit;
+
 
 namespace Basta.Server.Tests.Services;
 
@@ -35,8 +38,10 @@ public class GameOperationServiceTests : IDisposable
         _context = new BastaDbContext(options);
         _context.Database.EnsureCreated();
 
-        _sessionService = new GameSessionService();
+        var loggerMock = new Mock<ILogger<GameSessionService>>();
+        _sessionService = new GameSessionService(loggerMock.Object);
         _sut = new GameOperationService(_context, _sessionService);
+
     }
 
     [Fact]
@@ -117,8 +122,10 @@ public class GameOperationServiceTests : IDisposable
             .Options;
 
         await using var brokenContext = new BastaDbContext(brokenOptions);
-        var isolatedSessionService = new GameSessionService();
+        var isolatedLoggerMock = new Mock<ILogger<GameSessionService>>();
+        var isolatedSessionService = new GameSessionService(isolatedLoggerMock.Object);
         var brokenSut = new GameOperationService(brokenContext, isolatedSessionService);
+
 
         // Act & Assert — the operation should throw
         var act = async () => await brokenSut.CreateGameAsync("Charlie", "en", 5, 60, new List<int> { 1 });

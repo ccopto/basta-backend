@@ -138,29 +138,23 @@ public class BastaHub : Hub
         var session = _gameSessionService.TryGetSession(code);
         if (session == null) return;
 
-        // 1. Check if we have already completed the intended number of rounds
-        if (session.CurrentRound >= session.TotalRounds)
+        // 1. Try to pick a new letter. This internally checks for round limits and alphabet exhaustion.
+        var (letter, cancellationToken, gameOverReason) = _gameSessionService.StartNextRound(code);
+        
+        if (gameOverReason != null)
         {
-            await Clients.Group(code).SendAsync("GameOver", "All rounds completed.");
+            await Clients.Group(code).SendAsync("GameOver", gameOverReason);
             return;
         }
-
-        // 2. Try to pick a new letter. If the pool is exhausted, end the game.
-        var (letter, cancellationToken) = _gameSessionService.StartNextRound(code);
-        if (letter == null)
-        {
-            await Clients.Group(code).SendAsync("GameOver", "No more letters available.");
-            return;
-        }
-
 
         await Clients.Group(code).SendAsync("RoundStarted", new
         {
             roundNumber = session.CurrentRound,
-            letter = letter.ToString(),
+            letter = letter!.ToString(),
             timerDuration = session.TimerDuration,
             serverTime = DateTime.UtcNow.ToString("o")
         });
+
 
         // Run the background timer task for Option A
         // Using the token provided by the session service

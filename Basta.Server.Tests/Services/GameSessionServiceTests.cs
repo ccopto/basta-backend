@@ -1,16 +1,25 @@
 using Basta.Server.Services;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Time.Testing;
+using Moq;
 using Xunit;
+
+
 
 namespace Basta.Server.Tests.Services;
 
 public class GameSessionServiceTests
 {
     private readonly GameSessionService _sut;
+    private readonly FakeTimeProvider _timeProvider;
+    private readonly Mock<ILogger<GameSessionService>> _loggerMock;
 
     public GameSessionServiceTests()
     {
-        _sut = new GameSessionService();
+        _timeProvider = new FakeTimeProvider();
+        _loggerMock = new Mock<ILogger<GameSessionService>>();
+        _sut = new GameSessionService(_loggerMock.Object, _timeProvider);
     }
 
     [Fact]
@@ -149,10 +158,12 @@ public class GameSessionServiceTests
         var code = _sut.CreateSession(1, 5, 60, new List<int> { 1 });
 
         // Act
-        var (letter, _) = _sut.StartNextRound(code);
+        var (letter, _, gameOverReason) = _sut.StartNextRound(code);
 
         // Assert
+        gameOverReason.Should().BeNull();
         letter.Should().NotBeNull();
+
         var session = _sut.TryGetSession(code);
         session!.CurrentRound.Should().Be(1);
         session.CurrentLetter.Should().Be(letter);
@@ -173,10 +184,12 @@ public class GameSessionServiceTests
         }
 
         // Act
-        var (letter, _) = _sut.StartNextRound(code);
+        var (letter, _, gameOverReason) = _sut.StartNextRound(code);
 
         // Assert
         letter.Should().BeNull();
+        gameOverReason.Should().Be("No more letters available.");
+
     }
 
     [Fact]
@@ -220,9 +233,8 @@ public class GameSessionServiceTests
         _sut.StartNextRound(code);
         _sut.LockRound(code);
         
-        var session = _sut.TryGetSession(code);
-        // Manually set lock time to 1 second ago (Grace period is 3s)
-        session!.RoundLockedAt = DateTimeOffset.UtcNow.AddSeconds(-1);
+        // Advance time by 1 second (Grace period is 3s)
+        _timeProvider.Advance(TimeSpan.FromSeconds(1));
         
         var answers = new Dictionary<int, string> { { 1, "Apple" } };
         
@@ -231,8 +243,10 @@ public class GameSessionServiceTests
         
         // Assert
         result.Should().BeTrue();
-        session.CurrentRoundAnswers.Should().ContainKey(2);
+        var session = _sut.TryGetSession(code);
+        session!.CurrentRoundAnswers.Should().ContainKey(2);
     }
+
 
     [Fact]
     public void TrySubmitAnswers_RejectsAfterGracePeriod()
@@ -242,9 +256,8 @@ public class GameSessionServiceTests
         _sut.StartNextRound(code);
         _sut.LockRound(code);
         
-        var session = _sut.TryGetSession(code);
-        // Manually set lock time to 4 seconds ago (Grace period is 3s)
-        session!.RoundLockedAt = DateTimeOffset.UtcNow.AddSeconds(-4);
+        // Advance time by 4 seconds (Grace period is 3s)
+        _timeProvider.Advance(TimeSpan.FromSeconds(4));
         
         var answers = new Dictionary<int, string> { { 1, "Apple" } };
         
@@ -253,8 +266,10 @@ public class GameSessionServiceTests
         
         // Assert
         result.Should().BeFalse();
-        session.CurrentRoundAnswers.Should().NotContainKey(2);
+        var session = _sut.TryGetSession(code);
+        session!.CurrentRoundAnswers.Should().NotContainKey(2);
     }
+
 
 
     [Fact]

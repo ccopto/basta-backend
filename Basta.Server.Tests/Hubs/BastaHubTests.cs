@@ -89,7 +89,7 @@ public class BastaHubTests
         var items = new Dictionary<object, object?> { { "GameCode", code }, { "UserId", userId } };
         _mockContext.Setup(c => c.Items).Returns(items);
         _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
-        _mockSessionService.Setup(s => s.StartNextRound(code)).Returns(('A', new CancellationTokenSource().Token));
+        _mockSessionService.Setup(s => s.StartNextRound(code)).Returns(('A', new CancellationTokenSource().Token, null));
 
         // Act
         await _sut.StartGame();
@@ -211,7 +211,7 @@ public class BastaHubTests
         var items = new Dictionary<object, object?> { { "GameCode", code }, { "UserId", userId } };
         _mockContext.Setup(c => c.Items).Returns(items);
         _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
-        _mockSessionService.Setup(s => s.StartNextRound(code)).Returns(((char?)null, CancellationToken.None));
+        _mockSessionService.Setup(s => s.StartNextRound(code)).Returns(((char?)null, CancellationToken.None, "No more letters available."));
 
         // Act
         await _sut.StartGame();
@@ -238,13 +238,15 @@ public class BastaHubTests
         var items = new Dictionary<object, object?> { { "GameCode", code }, { "UserId", userId } };
         _mockContext.Setup(c => c.Items).Returns(items);
         _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
+        _mockSessionService.Setup(s => s.StartNextRound(code)).Returns(((char?)null, CancellationToken.None, "All rounds completed."));
 
         // Act
         await _sut.StartGame();
 
         // Assert
         _mockClientProxy.Verify(p => p.SendCoreAsync("GameOver", It.Is<object?[]>(o => o[0]!.ToString()!.Contains("All rounds completed")), default), Times.Once);
-        _mockSessionService.Verify(s => s.StartNextRound(It.IsAny<string>()), Times.Never);
+        _mockSessionService.Verify(s => s.StartNextRound(code), Times.Once);
     }
+
 }
 
