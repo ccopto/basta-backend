@@ -53,5 +53,22 @@ public interface IGameSessionService
     /// Updates the game session settings (rounds, timer, categories).
     /// </summary>
     void UpdateSessionSettings(string code, int totalRounds, int timerDuration, List<int> categoryIds);
+
+    /// <summary>
+    /// Checks if all currently connected players have submitted their answers for the round.
+    /// </summary>
+    bool CheckAllAnswersSubmitted(string code);
+
+    /// <summary>
+    /// Retrieves all answers submitted for the current round.
+    /// </summary>
+    Dictionary<int, Dictionary<int, string>> GetCurrentRoundAnswers(string code);
+
+    /// <summary>
+    /// Marks a user as having submitted their validation for the current round.
+    /// </summary>
+    /// <returns>True if ALL currently connected players have validated.</returns>
+    bool SubmitValidation(string code, int userId);
 }
+
 

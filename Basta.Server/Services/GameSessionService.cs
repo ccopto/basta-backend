@@ -121,6 +121,8 @@ public class GameSessionService : IGameSessionService
             session.RoundActive = true;
             session.RoundLocked = false;
             session.CurrentRoundAnswers.Clear();
+            session.PlayersValidated.Clear();
+
             
             // Create and store the Round CTS
             var cts = new CancellationTokenSource();
@@ -248,6 +250,36 @@ public class GameSessionService : IGameSessionService
             }
         }
     }
+
+    public bool CheckAllAnswersSubmitted(string code)
+    {
+        if (!_sessions.TryGetValue(code, out var session)) return false;
+        lock (session)
+        {
+            return session.CurrentRoundAnswers.Count >= session.Players.Count;
+        }
+    }
+
+    public Dictionary<int, Dictionary<int, string>> GetCurrentRoundAnswers(string code)
+    {
+        if (!_sessions.TryGetValue(code, out var session)) return new();
+        lock (session)
+        {
+            // Return a shallow copy of the dictionary
+            return new Dictionary<int, Dictionary<int, string>>(session.CurrentRoundAnswers);
+        }
+    }
+
+    public bool SubmitValidation(string code, int userId)
+    {
+        if (!_sessions.TryGetValue(code, out var session)) return false;
+        lock (session)
+        {
+            session.PlayersValidated.Add(userId);
+            return session.PlayersValidated.Count >= session.Players.Count;
+        }
+    }
+
 
 
     private static string GenerateCode()

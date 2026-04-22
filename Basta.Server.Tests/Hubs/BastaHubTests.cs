@@ -16,6 +16,7 @@ public class BastaHubTests
 {
     private readonly Mock<IGameSessionService> _mockSessionService;
     private readonly Mock<IGameOperationService> _mockOperationService;
+    private readonly Mock<IScoringService> _mockScoringService;
     private readonly Mock<ILogger<BastaHub>> _mockLogger;
     private readonly Mock<IHubCallerClients> _mockClients;
     private readonly Mock<IClientProxy> _mockClientProxy;
@@ -23,21 +24,28 @@ public class BastaHubTests
     private readonly Mock<HubCallerContext> _mockContext;
     private readonly BastaHub _sut;
 
+
     public BastaHubTests()
     {
         _mockSessionService = new Mock<IGameSessionService>();
         _mockOperationService = new Mock<IGameOperationService>();
+        _mockScoringService = new Mock<IScoringService>();
         _mockLogger = new Mock<ILogger<BastaHub>>();
         _mockClients = new Mock<IHubCallerClients>();
         _mockClientProxy = new Mock<IClientProxy>();
         _mockSingleClientProxy = new Mock<ISingleClientProxy>();
         _mockContext = new Mock<HubCallerContext>();
 
-        _sut = new BastaHub(_mockSessionService.Object, _mockOperationService.Object, _mockLogger.Object)
+        _sut = new BastaHub(
+            _mockSessionService.Object, 
+            _mockOperationService.Object, 
+            _mockScoringService.Object, 
+            _mockLogger.Object)
         {
             Clients = _mockClients.Object,
             Context = _mockContext.Object
         };
+
 
         // Default mock behavior for Clients.Group(code)
         _mockClients.Setup(c => c.Group(It.IsAny<string>())).Returns(_mockClientProxy.Object);
@@ -248,5 +256,34 @@ public class BastaHubTests
         _mockSessionService.Verify(s => s.StartNextRound(code), Times.Once);
     }
 
+    [Fact]
+    public async Task SubmitValidation_LastPlayer_TriggersScoring()
+    {
+        // Arrange
+        var code = "TEST";
+        var userId = 1;
+        var validations = new Dictionary<int, bool> { { 1, true } };
+        var session = new GameSession { Code = code, CurrentRound = 1, CurrentLetter = 'A' };
+
+        _mockContext.Setup(c => c.Items).Returns(new Dictionary<object, object?> { 
+            { "GameCode", code }, 
+            { "UserId", userId } 
+        });
+
+        _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
+        _mockSessionService.Setup(s => s.SubmitValidation(code, userId)).Returns(true); // Last player
+        
+        var scores = new List<PlayerScoreDto> { new PlayerScoreDto(1, "Alice", 10, 10, new List<AnswerScoreDto>()) };
+        _mockScoringService.Setup(s => s.CalculateAndAwardPointsAsync(code, 1, 'A')).ReturnsAsync(scores);
+
+        // Act
+        await _sut.SubmitValidation(validations);
+
+        // Assert
+        _mockOperationService.Verify(o => o.UpdateValidationAsync(code, 1, userId, validations, It.IsAny<CancellationToken>()), Times.Once);
+        _mockScoringService.Verify(s => s.CalculateAndAwardPointsAsync(code, 1, 'A'), Times.Once);
+        _mockClientProxy.Verify(c => c.SendCoreAsync("ReceiveGameScore", It.Is<object?[]>(o => o[0] == scores), It.IsAny<CancellationToken>()), Times.Once);
+    }
 }
+
 

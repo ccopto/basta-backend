@@ -8,17 +8,21 @@ public class BastaHub : Hub
 {
     private readonly IGameSessionService _gameSessionService;
     private readonly IGameOperationService _gameOperationService;
+    private readonly IScoringService _scoringService;
     private readonly ILogger<BastaHub> _logger;
 
     public BastaHub(
         IGameSessionService gameSessionService, 
         IGameOperationService gameOperationService,
+        IScoringService scoringService,
         ILogger<BastaHub> logger)
     {
         _gameSessionService = gameSessionService;
         _gameOperationService = gameOperationService;
+        _scoringService = scoringService;
         _logger = logger;
     }
+
 
     public async Task JoinGame(string code, int userId, string nickname)
     {
@@ -120,7 +124,15 @@ public class BastaHub : Hub
                     {
                         // 2. Persist to DB for posterity and scoring
                         await _gameOperationService.SubmitAnswersAsync(code, session.CurrentRound, userId, answers);
+
+                        // 3. Check if all players have submitted to trigger the validation phase
+                        if (_gameSessionService.CheckAllAnswersSubmitted(code))
+                        {
+                            var scoringData = _gameSessionService.GetCurrentRoundAnswers(code);
+                            await Clients.Group(code).SendAsync("DisplayScoring", scoringData);
+                        }
                     }
+
                     catch (Microsoft.EntityFrameworkCore.DbUpdateException ex)
                     {
                         // Handle race condition: If another thread already persisted for this (Game, Round, User, Category),
@@ -213,6 +225,33 @@ public class BastaHub : Hub
             }
         }
     }
+
+    public async Task SubmitValidation(Dictionary<int, bool> validations)
+    {
+        if (Context.Items.TryGetValue("GameCode", out var codeObj) && codeObj is string code &&
+            Context.Items.TryGetValue("UserId", out var userIdObj) && userIdObj is int userId)
+        {
+            var session = _gameSessionService.TryGetSession(code);
+            if (session != null)
+            {
+                // 1. Persist the IsValid flags to the database
+                await _gameOperationService.UpdateValidationAsync(code, session.CurrentRound, userId, validations);
+
+                // 2. Record in-memory that this user has finished validating
+                if (_gameSessionService.SubmitValidation(code, userId))
+                {
+                    // 3. If everyone is done, calculate final scores and broadcast results
+                    var finalScores = await _scoringService.CalculateAndAwardPointsAsync(
+                        code, 
+                        session.CurrentRound, 
+                        session.CurrentLetter ?? ' ');
+
+                    await Clients.Group(code).SendAsync("ReceiveGameScore", finalScores);
+                }
+            }
+        }
+    }
+
 
 
 
