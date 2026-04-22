@@ -139,7 +139,7 @@ public class GameOperationServiceTests : IDisposable
         // (no sessions were left in the service).
         // The simplest assertion: calling CreateSession again on a fresh service
         // still works, meaning no state was corrupted.
-        isolatedSessionService.CreateSession(1, 3, 30, new List<int> { 1 }).Should().NotBeNullOrWhiteSpace();
+        isolatedSessionService.CreateSession(1, "Host", 3, 30, new List<int> { 1 }).Should().NotBeNullOrWhiteSpace();
     }
     [Fact]
     public async Task JoinGameAsync_ValidInput_CreatesUserAndPlayerMapping()

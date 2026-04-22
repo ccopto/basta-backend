@@ -26,7 +26,7 @@ public class GameSessionServiceTests
     public void CreateSession_ReturnsValidFourLetterCode()
     {
         // Act
-        var code = _sut.CreateSession(1, 5, 60, new List<int> { 1 });
+        var code = _sut.CreateSession(1, "Host", 5, 60, new List<int> { 1 });
 
         // Assert
         code.Should().NotBeNullOrWhiteSpace();
@@ -44,7 +44,7 @@ public class GameSessionServiceTests
         var timer = 30;
 
         // Act
-        var code = _sut.CreateSession(hostId, rounds, timer, new List<int> { 1 });
+        var code = _sut.CreateSession(hostId, "Host", rounds, timer, new List<int> { 1 });
         var session = _sut.TryGetSession(code);
 
         // Assert
@@ -69,7 +69,7 @@ public class GameSessionServiceTests
     public void TryAddPlayer_ValidJoin_AddsPlayerToSession()
     {
         // Arrange
-        var code = _sut.CreateSession(1, 5, 60, new List<int> { 1 });
+        var code = _sut.CreateSession(1, "Host", 5, 60, new List<int> { 1 });
 
         // Act
         var result = _sut.TryAddPlayer(code, 2, "TestJoin", out var errorMessage);
@@ -85,7 +85,7 @@ public class GameSessionServiceTests
     public void TryAddPlayer_RoomFull_ReturnsFalse()
     {
         // Arrange
-        var code = _sut.CreateSession(1, 5, 60, new List<int> { 1 });
+        var code = _sut.CreateSession(1, "Host", 5, 60, new List<int> { 1 });
         _sut.TryAddPlayer(code, 1, "Host", out _);
         _sut.TryAddPlayer(code, 2, "P2", out _);
         _sut.TryAddPlayer(code, 3, "P3", out _);
@@ -107,7 +107,7 @@ public class GameSessionServiceTests
     public void TryAddPlayer_DuplicateNickname_ReturnsFalse()
     {
         // Arrange
-        var code = _sut.CreateSession(1, 5, 60, new List<int> { 1 });
+        var code = _sut.CreateSession(1, "Host", 5, 60, new List<int> { 1 });
         _sut.TryAddPlayer(code, 2, "DuplicateName", out _);
 
         // Act
@@ -125,7 +125,7 @@ public class GameSessionServiceTests
     public void TryAddPlayer_SameUserId_UpdatesSafely()
     {
         // Arrange
-        var code = _sut.CreateSession(1, 5, 60, new List<int> { 1 });
+        var code = _sut.CreateSession(1, "Host", 5, 60, new List<int> { 1 });
         _sut.TryAddPlayer(code, 2, "FirstName", out _);
 
         // Act
@@ -137,7 +137,7 @@ public class GameSessionServiceTests
         
         var session = _sut.TryGetSession(code);
         session!.Players.Should().ContainKey(2).WhoseValue.Should().Be("SecondName");
-        session.Players.Should().HaveCount(1);
+        session.Players.Should().HaveCount(2);
     }
 
     [Fact]
@@ -155,7 +155,7 @@ public class GameSessionServiceTests
     public void StartNextRound_PicksLetterAndUpdatesState()
     {
         // Arrange
-        var code = _sut.CreateSession(1, 5, 60, new List<int> { 1 });
+        var code = _sut.CreateSession(1, "Host", 5, 60, new List<int> { 1 });
 
         // Act
         var (letter, _, gameOverReason) = _sut.StartNextRound(code);
@@ -176,7 +176,7 @@ public class GameSessionServiceTests
     public void StartNextRound_ReturnsNull_WhenNoLettersLeft()
     {
         // Arrange
-        var code = _sut.CreateSession(1, 100, 60, new List<int> { 1 });
+        var code = _sut.CreateSession(1, "Host", 100, 60, new List<int> { 1 });
         const string alphabet = "ABCDEFGHJKLMNPRSTUWXY"; // 21 letters
         for (int i = 0; i < alphabet.Length; i++)
         {
@@ -196,7 +196,7 @@ public class GameSessionServiceTests
     public void LockRound_UpdatesStateAndClearsTimer()
     {
         // Arrange
-        var code = _sut.CreateSession(1, 5, 60, new List<int> { 1 });
+        var code = _sut.CreateSession(1, "Host", 5, 60, new List<int> { 1 });
         _sut.StartNextRound(code);
 
         // Act
@@ -212,7 +212,7 @@ public class GameSessionServiceTests
     public void TrySubmitAnswers_RecordsAnswers_WhenNotLocked()
     {
         // Arrange
-        var code = _sut.CreateSession(1, 5, 60, new List<int> { 1 });
+        var code = _sut.CreateSession(1, "Host", 5, 60, new List<int> { 1 });
         _sut.StartNextRound(code);
         var answers = new Dictionary<int, string> { { 1, "Apple" } };
 
@@ -229,7 +229,7 @@ public class GameSessionServiceTests
     public void TrySubmitAnswers_AcceptsWithinGracePeriod()
     {
         // Arrange
-        var code = _sut.CreateSession(1, 5, 60, new List<int> { 1 });
+        var code = _sut.CreateSession(1, "Host", 5, 60, new List<int> { 1 });
         _sut.StartNextRound(code);
         _sut.LockRound(code);
         
@@ -252,7 +252,7 @@ public class GameSessionServiceTests
     public void TrySubmitAnswers_RejectsAfterGracePeriod()
     {
         // Arrange
-        var code = _sut.CreateSession(1, 5, 60, new List<int> { 1 });
+        var code = _sut.CreateSession(1, "Host", 5, 60, new List<int> { 1 });
         _sut.StartNextRound(code);
         _sut.LockRound(code);
         
@@ -276,7 +276,7 @@ public class GameSessionServiceTests
     public void UpdateSessionSettings_UpdatesValuesCorrectly()
     {
         // Arrange
-        var code = _sut.CreateSession(1, 5, 60, new List<int> { 1 });
+        var code = _sut.CreateSession(1, "Host", 5, 60, new List<int> { 1 });
         var newRounds = 10;
         var newTimer = 30;
         var newCategories = new List<int> { 2, 3 };

@@ -17,7 +17,7 @@ public class GameSessionService : IGameSessionService
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
-    public string CreateSession(int hostUserId, int totalRounds, int timerDuration, List<int> categoryIds)
+    public string CreateSession(int hostUserId, string hostNickname, int totalRounds, int timerDuration, List<int> categoryIds)
     {
         // Atomic loop: TryAdd returns false if the code already exists, so we keep
         // generating until we win the insert. This eliminates the TOCTOU window that
@@ -35,6 +35,7 @@ public class GameSessionService : IGameSessionService
                 TimerDuration = timerDuration,
                 SelectedCategoryIds = categoryIds
             };
+            session.Players[hostUserId] = hostNickname;
         } while (!_sessions.TryAdd(code, session));
 
         return code;
