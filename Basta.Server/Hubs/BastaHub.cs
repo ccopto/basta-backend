@@ -33,6 +33,11 @@ public class BastaHub : Hub
         Context.Items["UserId"] = userId;
         Context.Items["GameCode"] = code;
 
+        // Defensively ensure the player is in the in-memory session.
+        // This is idempotent — if the REST /join already registered them,
+        // TryAddPlayer is a no-op (returns false with "already registered").
+        _gameSessionService.TryAddPlayer(code, userId, nickname, out _);
+
         // 3. Broadcast the updated lobby snapshot
         var snapshot = _gameSessionService.GetLobbySnapshot(code);
         if (snapshot != null)
