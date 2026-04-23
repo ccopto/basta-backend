@@ -79,6 +79,55 @@ public class BastaHubTests
     }
 
     [Fact]
+    public async Task JoinGame_CallsTryAddPlayer_WhenPlayerJoins()
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 2;
+        var nickname = "Joiner";
+        var snapshot = new LobbySnapshot { GameCode = code };
+
+        _mockContext.Setup(c => c.Items).Returns(new Dictionary<object, object?>());
+        _mockSessionService.Setup(s => s.GetLobbySnapshot(code)).Returns(snapshot);
+
+        var mockGroups = new Mock<IGroupManager>();
+        _sut.Groups = mockGroups.Object;
+
+        // Act
+        await _sut.JoinGame(code, userId, nickname);
+
+        // Assert
+        string? errorMessage;
+        _mockSessionService.Verify(s => s.TryAddPlayer(code, userId, nickname, out errorMessage), Times.Once);
+    }
+
+    [Fact]
+    public async Task JoinGame_BroadcastsSnapshot_EvenIfTryAddPlayerReturnsFalse()
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 1;
+        var nickname = "Host";
+        var snapshot = new LobbySnapshot { GameCode = code };
+
+        _mockContext.Setup(c => c.Items).Returns(new Dictionary<object, object?>());
+        _mockSessionService.Setup(s => s.GetLobbySnapshot(code)).Returns(snapshot);
+        
+        // Simulate player already in session (returns false)
+        string? msg = "Already registered";
+        _mockSessionService.Setup(s => s.TryAddPlayer(code, userId, nickname, out msg)).Returns(false);
+
+        var mockGroups = new Mock<IGroupManager>();
+        _sut.Groups = mockGroups.Object;
+
+        // Act
+        await _sut.JoinGame(code, userId, nickname);
+
+        // Assert
+        _mockClientProxy.Verify(p => p.SendCoreAsync("ReceiveLobbyUpdate", It.Is<object?[]>(o => o[0] == snapshot), default), Times.Once);
+    }
+
+    [Fact]
     public async Task StartGame_Succeeds_WhenHostAndEnoughPlayers()
     {
         // Arrange
