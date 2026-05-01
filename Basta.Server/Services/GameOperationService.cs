@@ -52,7 +52,7 @@ public class GameOperationService : IGameOperationService
             await _context.SaveChangesAsync(cancellationToken);
 
             // 2. Register the in-memory session (after UserId is available)
-            sessionCode = _gameSessionService.CreateSession(host.UserId, totalRounds, timerDuration, categoryIds);
+            sessionCode = _gameSessionService.CreateSession(host.UserId, nickname, totalRounds, timerDuration, categoryIds);
 
             // 3. Persist the Game entity
             var game = new Game

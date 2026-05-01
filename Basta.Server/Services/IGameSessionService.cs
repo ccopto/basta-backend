@@ -5,7 +5,7 @@ namespace Basta.Server.Services;
 
 public interface IGameSessionService
 {
-    string CreateSession(int hostUserId, int totalRounds, int timerDuration, List<int> categoryIds);
+    string CreateSession(int hostUserId, string hostNickname, int totalRounds, int timerDuration, List<int> categoryIds);
     GameSession? TryGetSession(string code);
 
     /// <summary>
