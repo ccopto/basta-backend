@@ -36,7 +36,12 @@ public class BastaHub : Hub
         // Defensively ensure the player is in the in-memory session.
         // This is idempotent — if the REST /join already registered them,
         // TryAddPlayer is a no-op (returns false with "already registered").
-        _gameSessionService.TryAddPlayer(code, userId, nickname, out _);
+        var added = _gameSessionService.TryAddPlayer(code, userId, nickname, out var errorMessage);
+        
+        if (!added && errorMessage != "Already registered in this game")
+        {
+            _logger.LogWarning("Player {UserId} ({Nickname}) joined group {Code} but failed to join session: {Error}", userId, nickname, code, errorMessage);
+        }
 
         // 3. Broadcast the updated lobby snapshot
         var snapshot = _gameSessionService.GetLobbySnapshot(code);

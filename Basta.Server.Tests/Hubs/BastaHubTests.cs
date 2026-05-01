@@ -114,7 +114,7 @@ public class BastaHubTests
         _mockSessionService.Setup(s => s.GetLobbySnapshot(code)).Returns(snapshot);
         
         // Simulate player already in session (returns false)
-        string? msg = "Already registered";
+        string? msg = "Already registered in this game";
         _mockSessionService.Setup(s => s.TryAddPlayer(code, userId, nickname, out msg)).Returns(false);
 
         var mockGroups = new Mock<IGroupManager>();
