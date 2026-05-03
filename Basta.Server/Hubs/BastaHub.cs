@@ -164,7 +164,8 @@ public class BastaHub : Hub
         
         if (gameOverReason != null)
         {
-            await Clients.Group(code).SendAsync("GameOver", gameOverReason);
+            var leaderboard = await _scoringService.GetLeaderboardAsync(code, gameOverReason);
+            await Clients.Group(code).SendAsync("GameOver", leaderboard);
             return;
         }
 
