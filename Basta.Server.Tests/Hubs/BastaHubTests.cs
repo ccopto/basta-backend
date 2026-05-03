@@ -269,12 +269,15 @@ public class BastaHubTests
         _mockContext.Setup(c => c.Items).Returns(items);
         _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
         _mockSessionService.Setup(s => s.StartNextRound(code)).Returns(((char?)null, CancellationToken.None, "No more letters available."));
+        
+        var leaderboard = new LeaderboardDto("No more letters available.", new List<LeaderboardPlayerDto>());
+        _mockScoringService.Setup(s => s.GetLeaderboardAsync(code, "No more letters available.")).ReturnsAsync(leaderboard);
 
         // Act
         await _sut.StartGame();
 
         // Assert
-        _mockClientProxy.Verify(p => p.SendCoreAsync("GameOver", It.Is<object?[]>(o => o[0]!.ToString()!.Contains("No more letters")), default), Times.Once);
+        _mockClientProxy.Verify(p => p.SendCoreAsync("GameOver", It.Is<object?[]>(o => o[0] == leaderboard), default), Times.Once);
     }
 
     [Fact]
@@ -297,11 +300,14 @@ public class BastaHubTests
         _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
         _mockSessionService.Setup(s => s.StartNextRound(code)).Returns(((char?)null, CancellationToken.None, "All rounds completed."));
 
+        var leaderboard = new LeaderboardDto("All rounds completed.", new List<LeaderboardPlayerDto>());
+        _mockScoringService.Setup(s => s.GetLeaderboardAsync(code, "All rounds completed.")).ReturnsAsync(leaderboard);
+
         // Act
         await _sut.StartGame();
 
         // Assert
-        _mockClientProxy.Verify(p => p.SendCoreAsync("GameOver", It.Is<object?[]>(o => o[0]!.ToString()!.Contains("All rounds completed")), default), Times.Once);
+        _mockClientProxy.Verify(p => p.SendCoreAsync("GameOver", It.Is<object?[]>(o => o[0] == leaderboard), default), Times.Once);
         _mockSessionService.Verify(s => s.StartNextRound(code), Times.Once);
     }
 
