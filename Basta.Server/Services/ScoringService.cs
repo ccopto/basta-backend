@@ -99,4 +99,37 @@ public class ScoringService : IScoringService
 
         return scores;
     }
+
+    public async Task<LeaderboardDto> GetLeaderboardAsync(string gameId, string reason)
+    {
+        var gamePlayers = await _context.GamePlayers
+            .Include(gp => gp.User)
+            .Where(gp => gp.GameId == gameId)
+            .OrderByDescending(gp => gp.CumulativeScore)
+            .ToListAsync();
+
+        var players = new List<LeaderboardPlayerDto>();
+        int currentRank = 1;
+        int playersCounted = 0;
+        int? lastScore = null;
+
+        foreach (var gp in gamePlayers)
+        {
+            playersCounted++;
+            if (lastScore.HasValue && gp.CumulativeScore < lastScore.Value)
+            {
+                currentRank = playersCounted;
+            }
+
+            players.Add(new LeaderboardPlayerDto(
+                gp.UserId,
+                gp.User?.Nickname ?? "Unknown",
+                gp.CumulativeScore,
+                currentRank));
+
+            lastScore = gp.CumulativeScore;
+        }
+
+        return new LeaderboardDto(reason, players);
+    }
 }

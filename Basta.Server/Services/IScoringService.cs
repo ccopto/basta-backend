@@ -9,4 +9,9 @@ public interface IScoringService
     /// Awards points in the DB and updates cumulative scores.
     /// </summary>
     Task<List<PlayerScoreDto>> CalculateAndAwardPointsAsync(string gameId, int roundNumber, char roundLetter);
+
+    /// <summary>
+    /// Fetches all players for a game and ranks them by cumulative score.
+    /// </summary>
+    Task<LeaderboardDto> GetLeaderboardAsync(string gameId, string reason);
 }
