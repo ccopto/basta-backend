@@ -65,6 +65,9 @@ public class BastaHubTests
         _mockContext.Setup(c => c.ConnectionId).Returns(connectionId);
         _mockContext.Setup(c => c.Items).Returns(new Dictionary<object, object?>());
         _mockSessionService.Setup(s => s.GetLobbySnapshot(code)).Returns(snapshot);
+        
+        string? msg = null;
+        _mockSessionService.Setup(s => s.TryAddPlayer(code, userId, nickname, out msg)).Returns(true);
 
         var mockGroups = new Mock<IGroupManager>();
         _sut.Groups = mockGroups.Object;
@@ -89,6 +92,9 @@ public class BastaHubTests
 
         _mockContext.Setup(c => c.Items).Returns(new Dictionary<object, object?>());
         _mockSessionService.Setup(s => s.GetLobbySnapshot(code)).Returns(snapshot);
+        
+        string? msg = null;
+        _mockSessionService.Setup(s => s.TryAddPlayer(code, userId, nickname, out msg)).Returns(true);
 
         var mockGroups = new Mock<IGroupManager>();
         _sut.Groups = mockGroups.Object;
@@ -125,6 +131,32 @@ public class BastaHubTests
 
         // Assert
         _mockClientProxy.Verify(p => p.SendCoreAsync("ReceiveLobbyUpdate", It.Is<object?[]>(o => o[0] == snapshot), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task JoinGame_ThrowsHubException_WhenTryAddPlayerFails()
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 3;
+        var nickname = "Latecomer";
+        var errorMessage = "Game is already full";
+
+        _mockContext.Setup(c => c.Items).Returns(new Dictionary<object, object?>());
+        
+        string? msg = errorMessage;
+        _mockSessionService.Setup(s => s.TryAddPlayer(code, userId, nickname, out msg)).Returns(false);
+
+        var mockGroups = new Mock<IGroupManager>();
+        _sut.Groups = mockGroups.Object;
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<HubException>(() => _sut.JoinGame(code, userId, nickname));
+        Assert.Equal(errorMessage, ex.Message);
+        
+        // Verify no broadcast was sent
+        _mockClients.Verify(c => c.Group(code), Times.Never);
+        _mockClientProxy.Verify(p => p.SendCoreAsync(It.IsAny<string>(), It.IsAny<object?[]>(), default), Times.Never);
     }
 
     [Fact]
@@ -277,7 +309,7 @@ public class BastaHubTests
         await _sut.StartGame();
 
         // Assert
-        _mockClientProxy.Verify(p => p.SendCoreAsync("GameOver", It.Is<object?[]>(o => o[0] == leaderboard), default), Times.Once);
+        _mockClientProxy.Verify(p => p.SendCoreAsync("GameOver", It.Is<object?[]>(o => (LeaderboardDto)o[0]! == leaderboard), default), Times.Once);
     }
 
     [Fact]
@@ -307,7 +339,7 @@ public class BastaHubTests
         await _sut.StartGame();
 
         // Assert
-        _mockClientProxy.Verify(p => p.SendCoreAsync("GameOver", It.Is<object?[]>(o => o[0] == leaderboard), default), Times.Once);
+        _mockClientProxy.Verify(p => p.SendCoreAsync("GameOver", It.Is<object?[]>(o => (LeaderboardDto)o[0]! == leaderboard), default), Times.Once);
         _mockSessionService.Verify(s => s.StartNextRound(code), Times.Once);
     }
 
