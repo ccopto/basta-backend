@@ -41,6 +41,7 @@ public class BastaHub : Hub
         if (!added && errorMessage != "Already registered in this game")
         {
             _logger.LogWarning("Player {UserId} ({Nickname}) joined group {Code} but failed to join session: {Error}", userId, nickname, code, errorMessage);
+            throw new HubException(errorMessage);
         }
 
         // 3. Broadcast the updated lobby snapshot
