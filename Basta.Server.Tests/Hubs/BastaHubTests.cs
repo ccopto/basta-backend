@@ -78,7 +78,7 @@ public class BastaHubTests
         // Assert
         mockGroups.Verify(g => g.AddToGroupAsync(connectionId, code, default), Times.Once);
         _mockClients.Verify(c => c.Group(code), Times.Once);
-        _mockClientProxy.Verify(p => p.SendCoreAsync("ReceiveLobbyUpdate", It.Is<object?[]>(o => o[0] == snapshot), default), Times.Once);
+        _mockClientProxy.Verify(p => p.SendCoreAsync("ReceiveLobbyUpdate", It.Is<object?[]>(o => (LobbySnapshot)o[0]! == snapshot), default), Times.Once);
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public class BastaHubTests
         await _sut.JoinGame(code, userId, nickname);
 
         // Assert
-        _mockClientProxy.Verify(p => p.SendCoreAsync("ReceiveLobbyUpdate", It.Is<object?[]>(o => o[0] == snapshot), default), Times.Once);
+        _mockClientProxy.Verify(p => p.SendCoreAsync("ReceiveLobbyUpdate", It.Is<object?[]>(o => (LobbySnapshot)o[0]! == snapshot), default), Times.Once);
     }
 
     [Fact]
@@ -369,7 +369,7 @@ public class BastaHubTests
         // Assert
         _mockOperationService.Verify(o => o.UpdateValidationAsync(code, 1, userId, validations, It.IsAny<CancellationToken>()), Times.Once);
         _mockScoringService.Verify(s => s.CalculateAndAwardPointsAsync(code, 1, 'A'), Times.Once);
-        _mockClientProxy.Verify(c => c.SendCoreAsync("ReceiveGameScore", It.Is<object?[]>(o => o[0] == scores), It.IsAny<CancellationToken>()), Times.Once);
+        _mockClientProxy.Verify(c => c.SendCoreAsync("ReceiveGameScore", It.Is<object?[]>(o => (List<PlayerScoreDto>)o[0]! == scores), It.IsAny<CancellationToken>()), Times.Once);
     }
 }
 
