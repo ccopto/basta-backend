@@ -98,6 +98,53 @@ public class ScoringServiceTests : IDisposable
 
     }
 
+    [Fact]
+    public async Task GetLeaderboardAsync_TiedScores_AssignsSameRankAndSkips()
+    {
+        // Arrange
+        var gameId = "LEAD";
+        var host = new User { UserId = 10, Nickname = "P1" };
+        _context.Users.AddRange(
+            host,
+            new User { UserId = 20, Nickname = "P2" },
+            new User { UserId = 30, Nickname = "P3" },
+            new User { UserId = 40, Nickname = "P4" }
+        );
+
+        _context.Games.Add(new Game
+        {
+            GameId = gameId,
+            HostUserId = 10,
+            TotalRounds = 3,
+            TimerDuration = 60
+        });
+
+        _context.GamePlayers.AddRange(
+            new GamePlayer { GameId = gameId, UserId = 10, CumulativeScore = 100 },
+            new GamePlayer { GameId = gameId, UserId = 20, CumulativeScore = 100 },
+            new GamePlayer { GameId = gameId, UserId = 30, CumulativeScore = 80 },
+            new GamePlayer { GameId = gameId, UserId = 40, CumulativeScore = 70 }
+        );
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _sut.GetLeaderboardAsync(gameId, "Test Reason");
+
+        // Assert
+        result.Reason.Should().Be("Test Reason");
+        result.Players.Should().HaveCount(4);
+        
+        // P1 and P2 should be Rank 1 (order between P1/P2 not strictly defined, but both Rank 1)
+        result.Players.Where(p => p.Rank == 1).Should().HaveCount(2);
+        result.Players.First(p => p.Rank == 1).CumulativeScore.Should().Be(100);
+        
+        // P3 should be Rank 3 (skipping 2)
+        result.Players.First(p => p.Rank == 3).CumulativeScore.Should().Be(80);
+        
+        // P4 should be Rank 4
+        result.Players.First(p => p.Rank == 4).CumulativeScore.Should().Be(70);
+    }
+
     public void Dispose()
     {
         _connection.Close();

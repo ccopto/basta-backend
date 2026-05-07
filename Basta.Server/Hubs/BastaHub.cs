@@ -41,6 +41,7 @@ public class BastaHub : Hub
         if (!added && errorMessage != "Already registered in this game")
         {
             _logger.LogWarning("Player {UserId} ({Nickname}) joined group {Code} but failed to join session: {Error}", userId, nickname, code, errorMessage);
+            throw new HubException(errorMessage);
         }
 
         // 3. Broadcast the updated lobby snapshot
@@ -164,7 +165,8 @@ public class BastaHub : Hub
         
         if (gameOverReason != null)
         {
-            await Clients.Group(code).SendAsync("GameOver", gameOverReason);
+            var leaderboard = await _scoringService.GetLeaderboardAsync(code, gameOverReason);
+            await Clients.Group(code).SendAsync("GameOver", leaderboard);
             return;
         }
 

@@ -22,3 +22,13 @@ public record PlayerAnswersDto(
     string Nickname,
     Dictionary<int, string> Answers);
 
+public record LeaderboardDto(
+    string Reason, 
+    List<LeaderboardPlayerDto> Players);
+
+public record LeaderboardPlayerDto(
+    int UserId, 
+    string Nickname, 
+    int CumulativeScore, 
+    int Rank);
+
