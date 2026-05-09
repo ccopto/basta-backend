@@ -73,6 +73,20 @@ public class CategoriesControllerTests : IDisposable
         categories.Should().Contain(c => c.Name == "Nombre");
     }
 
+    [Fact]
+    public async Task GetCategories_UnknownLanguage_FallsBackToEnglish()
+    {
+        // Act
+        var result = await _sut.GetCategories(lang: "fr");
+
+        // Assert
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        var categories = okResult.Value.Should().BeAssignableTo<IEnumerable<CategoryDto>>().Subject;
+
+        categories.Should().Contain(c => c.Name == "Name");
+        categories.Should().Contain(c => c.Name == "Animal");
+    }
+
     public void Dispose()
     {
         _context.Dispose();
