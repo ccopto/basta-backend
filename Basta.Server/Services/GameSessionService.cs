@@ -19,6 +19,9 @@ public class GameSessionService : IGameSessionService
 
     public string CreateSession(int hostUserId, string hostNickname, int totalRounds, int timerDuration, List<int> categoryIds, string language = "en")
     {
+        // Normalize language to "es" or "en", fallback to "en"
+        language = string.Equals(language, "es", StringComparison.OrdinalIgnoreCase) ? "es" : "en";
+
         // Atomic loop: TryAdd returns false if the code already exists, so we keep
         // generating until we win the insert. This eliminates the TOCTOU window that
         // existed between ContainsKey and TryAdd.
