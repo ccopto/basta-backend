@@ -455,6 +455,8 @@ $RECYCLE.BIN/
 
 # Basta specific ignores
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
 .env
