@@ -36,6 +36,22 @@ public class GameSessionServiceTests
     }
 
     [Fact]
+    public void CreateSession_PopulatesLanguageAndSnapshotReturnsIt()
+    {
+        // Arrange
+        var hostId = 1;
+        var language = "es";
+
+        // Act
+        var code = _sut.CreateSession(hostId, "Host", 5, 60, new List<int> { 1 }, language);
+        var snapshot = _sut.GetLobbySnapshot(code);
+
+        // Assert
+        snapshot.Should().NotBeNull();
+        snapshot!.Language.Should().Be(language);
+    }
+
+    [Fact]
     public void CreateSession_PopulatesSessionObject()
     {
         // Arrange
