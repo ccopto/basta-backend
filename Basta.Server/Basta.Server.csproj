@@ -13,6 +13,18 @@
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.*" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+    <PackageReference Include="WeCantSpell.Hunspell" Version="7.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Dictionaries\Hunspell\en_US.dic" />
+    <EmbeddedResource Include="Dictionaries\Hunspell\en_US.aff" />
+    <EmbeddedResource Include="Dictionaries\Hunspell\es_ES.dic" />
+    <EmbeddedResource Include="Dictionaries\Hunspell\es_ES.aff" />
+    <EmbeddedResource Include="Dictionaries\ProperNouns\countries_all.txt" />
+    <EmbeddedResource Include="Dictionaries\ProperNouns\cities_all.txt" />
+    <EmbeddedResource Include="Dictionaries\ProperNouns\names_all.txt" />
+    <EmbeddedResource Include="Dictionaries\ProperNouns\animals_all.txt" />
   </ItemGroup>
 
 </Project>
