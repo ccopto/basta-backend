@@ -157,14 +157,55 @@ public class GameSessionServiceTests
     }
 
     [Fact]
-    public void TryAddPlayer_InvalidGameCode_ReturnsFalse()
+    public void TryAddPlayer_WithInvalidCode_ReturnsFalse()
     {
         // Act
-        var result = _sut.TryAddPlayer("INVALID", 1, "Name", out var errorMessage);
+        var result = _sut.TryAddPlayer("NONE", 1, "Player", out var errorMessage);
 
         // Assert
         result.Should().BeFalse();
         errorMessage.Should().Be("Game session not found.");
+    }
+
+    [Fact]
+    public void TryAddPlayer_WhenSessionFull_ReturnsFalse()
+    {
+        // Arrange
+        var code = _sut.CreateSession(1, "Host", 5, 60, new List<int> { 1 });
+        // Add 4 more players (total 5)
+        _sut.TryAddPlayer(code, 2, "P2", out _);
+        _sut.TryAddPlayer(code, 3, "P3", out _);
+        _sut.TryAddPlayer(code, 4, "P4", out _);
+        _sut.TryAddPlayer(code, 5, "P5", out _);
+
+        // Act
+        var result = _sut.TryAddPlayer(code, 6, "P6", out var errorMessage);
+
+        // Assert
+        result.Should().BeFalse();
+        errorMessage.Should().Be("Game session is full.");
+    }
+
+    [Fact]
+    public void TryAddPlayer_WhenRejoining_ReturnsTrue()
+    {
+        // Arrange
+        var code = _sut.CreateSession(1, "Host", 5, 60, new List<int> { 1 });
+        // Fill the session
+        _sut.TryAddPlayer(code, 2, "P2", out _);
+        _sut.TryAddPlayer(code, 3, "P3", out _);
+        _sut.TryAddPlayer(code, 4, "P4", out _);
+        _sut.TryAddPlayer(code, 5, "P5", out _);
+
+        // Act - Re-add an existing player (idempotency/reconnection)
+        var result = _sut.TryAddPlayer(code, 3, "P3-UpdatedNickname", out var errorMessage);
+
+        // Assert
+        result.Should().BeTrue();
+        errorMessage.Should().BeEmpty();
+        var snapshot = _sut.GetLobbySnapshot(code);
+        snapshot!.Players.Should().HaveCount(5);
+        snapshot.Players.Should().Contain(p => p.UserId == 3 && p.Nickname == "P3-UpdatedNickname");
     }
 
     [Fact]
