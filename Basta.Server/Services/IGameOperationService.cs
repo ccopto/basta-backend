@@ -11,6 +11,7 @@ public interface IGameOperationService
     Task<CreateGameResult> CreateGameAsync(
         string nickname,
         string preferredLanguage,
+        string language,
         int totalRounds,
         int timerDuration,
         List<int> categoryIds,
@@ -37,6 +38,15 @@ public interface IGameOperationService
         int roundNumber, 
         int userId, 
         Dictionary<int, bool> validations,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the answers for all players in a round as a DTO with dictionary validation metadata,
+    /// suitable for broadcasting as the DisplayScoring payload.
+    /// </summary>
+    Task<RoundAnswersDto> GetRoundAnswersDtoAsync(
+        string gameId,
+        int roundNumber,
         CancellationToken cancellationToken = default);
 }
 

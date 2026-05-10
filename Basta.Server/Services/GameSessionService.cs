@@ -271,11 +271,22 @@ public class GameSessionService : IGameSessionService
         if (!_sessions.TryGetValue(code, out var session)) return new RoundAnswersDto(new());
         lock (session)
         {
-            var players = session.Players.Select(p => new PlayerAnswersDto(
-                p.Key,
-                p.Value,
-                session.CurrentRoundAnswers.GetValueOrDefault(p.Key, new())
-            )).ToList();
+            var players = session.Players.Select(p =>
+            {
+                var rawAnswers = session.CurrentRoundAnswers.GetValueOrDefault(p.Key, new());
+                // Convert in-memory raw answers to AnswerValidationDto.
+                // DictionaryValid/RequiresPeerReview are not known yet in-memory;
+                // the Hub uses GetRoundAnswersDtoAsync (DB-backed) for the actual broadcast.
+                var answerDtos = rawAnswers.Select(kvp => new AnswerValidationDto(
+                    0, // answerId unknown in-memory
+                    kvp.Key,
+                    kvp.Value,
+                    null, // DictionaryValid unknown until DB persisted
+                    true  // Assume peer review needed until DB check
+                )).ToList();
+
+                return new PlayerAnswersDto(p.Key, p.Value, answerDtos);
+            }).ToList();
 
             return new RoundAnswersDto(players);
         }
