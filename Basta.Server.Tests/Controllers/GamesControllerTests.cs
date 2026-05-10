@@ -86,4 +86,65 @@ public class GamesControllerTests
                 It.IsAny<List<int>>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(21)]
+    public async Task CreateGame_InvalidTotalRounds_ReturnsBadRequest(int invalidRounds)
+    {
+        // Arrange
+        var request = new CreateGameRequest
+        {
+            HostNickname = "Host",
+            TotalRounds = invalidRounds,
+            CategoryIds = new List<int> { 1 }
+        };
+        _sut.ModelState.AddModelError("TotalRounds", "Out of range");
+
+        // Act
+        var result = await _sut.CreateGame(request, CancellationToken.None);
+
+        // Assert
+        result.Result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Theory]
+    [InlineData(29)]
+    [InlineData(121)]
+    public async Task CreateGame_InvalidTimerDuration_ReturnsBadRequest(int invalidTimer)
+    {
+        // Arrange
+        var request = new CreateGameRequest
+        {
+            HostNickname = "Host",
+            TimerDuration = invalidTimer,
+            CategoryIds = new List<int> { 1 }
+        };
+        _sut.ModelState.AddModelError("TimerDuration", "Out of range");
+
+        // Act
+        var result = await _sut.CreateGame(request, CancellationToken.None);
+
+        // Assert
+        result.Result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task CreateGame_EmptyCategories_ReturnsBadRequest()
+    {
+        // Arrange
+        var request = new CreateGameRequest
+        {
+            HostNickname = "Host",
+            CategoryIds = new List<int>()
+        };
+        _sut.ModelState.AddModelError("CategoryIds", "Required");
+
+        // Act
+        var result = await _sut.CreateGame(request, CancellationToken.None);
+
+        // Assert
+        result.Result.Should().BeOfType<BadRequestObjectResult>();
+    }
 }
