@@ -1,4 +1,5 @@
 using Basta.Server.Data;
+using Basta.Server.Entities;
 using Basta.Server.Services;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
@@ -16,6 +17,7 @@ public class GameIntegrationTests : IDisposable
     private readonly GameSessionService _sessionService;
     private readonly GameOperationService _operationService;
     private readonly ScoringService _scoringService;
+    private readonly Mock<IDictionaryService> _dictServiceMock;
 
     public GameIntegrationTests()
     {
@@ -31,7 +33,13 @@ public class GameIntegrationTests : IDisposable
 
         var loggerMock = new Mock<ILogger<GameSessionService>>();
         _sessionService = new GameSessionService(loggerMock.Object);
-        _operationService = new GameOperationService(_context, _sessionService);
+
+        // Dictionary service that accepts all words for integration tests
+        _dictServiceMock = new Mock<IDictionaryService>();
+        _dictServiceMock.Setup(d => d.IsValidWord(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CategoryValidationType>()))
+                        .Returns(true);
+
+        _operationService = new GameOperationService(_context, _sessionService, _dictServiceMock.Object);
         _scoringService = new ScoringService(_context);
     }
 
@@ -39,7 +47,7 @@ public class GameIntegrationTests : IDisposable
     public async Task FivePlayerLimit_EnforcedCorrectly()
     {
         // 1. Create Game (Host)
-        var createResult = await _operationService.CreateGameAsync("Host", "en", 3, 60, new List<int> { 1 });
+        var createResult = await _operationService.CreateGameAsync("Host", "en", "en", 3, 60, new List<int> { 1 });
         var code = createResult.GameCode;
 
         // 2. Join 4 more players
@@ -63,7 +71,7 @@ public class GameIntegrationTests : IDisposable
     public async Task FullGameLoop_Integration()
     {
         // 1. Create & Join
-        var createResult = await _operationService.CreateGameAsync("Host", "en", 1, 60, new List<int> { 1 });
+        var createResult = await _operationService.CreateGameAsync("Host", "en", "en", 1, 60, new List<int> { 1 });
         var code = createResult.GameCode;
         var guestResult = await _operationService.JoinGameAsync(code, "Guest", "en");
 
@@ -85,7 +93,8 @@ public class GameIntegrationTests : IDisposable
         // 5. Calculate Points
         var scores = await _scoringService.CalculateAndAwardPointsAsync(code, 1, letter!.Value);
 
-        // Assert
+        // Full integration: dict service returns true for all, so IsValid = true and DictionaryValid = true.
+        // Scores should use the cascade rule: DictionaryValid=true → auto-accepted.
         scores.Should().HaveCount(2);
         scores.Should().Contain(s => s.UserId == createResult.HostUserId && s.RoundScore == 10);
         scores.Should().Contain(s => s.UserId == guestResult.UserId && s.RoundScore == 10);
