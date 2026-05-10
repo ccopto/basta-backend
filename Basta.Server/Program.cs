@@ -32,7 +32,12 @@ builder.Services.AddDbContext<BastaDbContext>(options =>
     options.UseSqlite(connectionString));
 
 // Configure SignalR
-builder.Services.AddSignalR();
+builder.Services.AddSignalR(options =>
+{
+    options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+    options.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+});
 
 // Configure CORS (especially for local dev against Angular)
 var corsOrigins = builder.Configuration.GetValue<string>("CORS_ORIGINS")?.Split(',') 
