@@ -17,8 +17,11 @@ public class GameSessionService : IGameSessionService
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
-    public string CreateSession(int hostUserId, string hostNickname, int totalRounds, int timerDuration, List<int> categoryIds)
+    public string CreateSession(int hostUserId, string hostNickname, int totalRounds, int timerDuration, List<int> categoryIds, string language = "en")
     {
+        // Normalize language to "es" or "en", fallback to "en"
+        language = string.Equals(language, "es", StringComparison.OrdinalIgnoreCase) ? "es" : "en";
+
         // Atomic loop: TryAdd returns false if the code already exists, so we keep
         // generating until we win the insert. This eliminates the TOCTOU window that
         // existed between ContainsKey and TryAdd.
@@ -33,7 +36,8 @@ public class GameSessionService : IGameSessionService
                 HostUserId = hostUserId,
                 TotalRounds = totalRounds,
                 TimerDuration = timerDuration,
-                SelectedCategoryIds = categoryIds
+                SelectedCategoryIds = categoryIds,
+                Language = language
             };
             session.Players[hostUserId] = hostNickname;
         } while (!_sessions.TryAdd(code, session));
@@ -212,7 +216,7 @@ public class GameSessionService : IGameSessionService
                 HostUserId = session.HostUserId,
                 TotalRounds = session.TotalRounds,
                 TimerDuration = session.TimerDuration,
-                Language = string.Empty,
+                Language = session.Language,
                 State = "Lobby",
                 Players = players,
                 SelectedCategoryIds = session.SelectedCategoryIds

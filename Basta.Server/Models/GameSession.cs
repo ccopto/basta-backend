@@ -8,6 +8,7 @@ public class GameSession
     public int HostUserId { get; set; }
     public int TotalRounds { get; set; }
     public int TimerDuration { get; set; }
+    public string Language { get; set; } = "en";
     public int CurrentRound { get; set; } = 0;
     public char? CurrentLetter { get; set; } 
     public bool RoundLocked { get; set; } = false;
