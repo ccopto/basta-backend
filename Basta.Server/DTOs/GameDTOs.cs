@@ -11,6 +11,10 @@ public class CreateGameRequest
 
     [StringLength(10)]
     public string PreferredLanguage { get; set; } = "en";
+
+    /// <summary>Language code for dictionary validation (e.g. "en", "es"). Defaults to "en".</summary>
+    [StringLength(10)]
+    public string Language { get; set; } = "en";
     
     [Range(1, 20)]
     public int TotalRounds { get; set; } = 5;
