@@ -60,6 +60,11 @@ builder.Services.AddHealthChecks();
 // Register Game Session Service (Singleton: holds in-memory game state across requests)
 builder.Services.AddSingleton<IGameSessionService, GameSessionService>();
 
+// Register Dictionary Service (Singleton: loads Hunspell + datasets once on startup)
+builder.Services.AddSingleton<HunspellDictionaryService>();
+builder.Services.AddSingleton<IDictionaryService>(sp => sp.GetRequiredService<HunspellDictionaryService>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<HunspellDictionaryService>());
+
 // Register Game Operation Service (Scoped: wraps a DbContext transaction per request)
 builder.Services.AddScoped<IGameOperationService, GameOperationService>();
 
@@ -68,7 +73,6 @@ builder.Services.AddScoped<IScoringService, ScoringService>();
 
 // Register TimeProvider for testable time-dependent logic
 builder.Services.AddSingleton(TimeProvider.System);
-
 
 
 var app = builder.Build();

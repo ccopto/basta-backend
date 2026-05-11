@@ -28,10 +28,11 @@ public class ScoringService : IScoringService
             .Where(a => a.GameId == gameId && a.RoundNumber == roundNumber)
             .ToListAsync();
 
-        // 2. Identify shared vs unique answers among valid ones
+        // 2. Identify shared vs unique answers using the cascade rule:
+        //    Phase 1 pass (DictionaryValid == true) OR Phase 2 peer approval (IsValid == true)
         // Normalize: trim and lowercase
         var validAnswers = roundAnswers
-            .Where(a => a.IsValid == true && 
+            .Where(a => (a.DictionaryValid == true || (a.DictionaryValid == false && a.IsValid == true)) &&
                         !string.IsNullOrWhiteSpace(a.SubmittedAnswer) &&
                         a.SubmittedAnswer.Trim().StartsWith(roundLetter.ToString(), StringComparison.OrdinalIgnoreCase))
             .GroupBy(a => a.SubmittedAnswer.Trim().ToLowerInvariant())
@@ -51,7 +52,8 @@ public class ScoringService : IScoringService
                 bool isUnique = false;
                 bool actuallyValid = false;
 
-                if (answer.IsValid == true && 
+                if ((answer.DictionaryValid == true ||
+                     (answer.DictionaryValid == false && answer.IsValid == true)) &&
                     !string.IsNullOrWhiteSpace(answer.SubmittedAnswer) &&
                     answer.SubmittedAnswer.Trim().StartsWith(roundLetter.ToString(), StringComparison.OrdinalIgnoreCase))
                 {
@@ -80,7 +82,8 @@ public class ScoringService : IScoringService
                     answer.SubmittedAnswer,
                     actuallyValid,
                     points,
-                    isUnique));
+                    isUnique,
+                    answer.DictionaryValid));
             }
 
             player.CumulativeScore += roundScore;

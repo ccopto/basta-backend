@@ -24,6 +24,17 @@ public class RoundAnswer
 
     public int PointsAwarded { get; set; } = 0;
 
+    /// <summary>
+    /// Result of Phase 1 dictionary/dataset check.
+    /// null = not yet checked, true = auto-accepted, false = failed, requires peer review.
+    /// </summary>
+    public bool? DictionaryValid { get; set; }
+
+    /// <summary>
+    /// True when DictionaryValid == false, meaning this answer must go to peer voting.
+    /// </summary>
+    public bool RequiresPeerReview { get; set; } = false;
+
     // Navigation properties
     public Game? Game { get; set; }
     public User? User { get; set; }

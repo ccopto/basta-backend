@@ -8,6 +8,12 @@ public class Game
     public int TimerDuration { get; set; }
 
     /// <summary>
+    /// Language code used for dictionary validation in this game session.
+    /// e.g. "en" for English, "es" for Spanish.
+    /// </summary>
+    public string Language { get; set; } = "en";
+
+    /// <summary>
     /// Set by the database engine via HasDefaultValueSql("datetime('now')").
     /// Do not assign this in application code.
     /// </summary>

@@ -36,6 +36,7 @@ public class GamesController : ControllerBase
         var result = await _gameOperationService.CreateGameAsync(
             nickname,
             request.PreferredLanguage,
+            request.Language,
             request.TotalRounds,
             request.TimerDuration,
             request.CategoryIds,

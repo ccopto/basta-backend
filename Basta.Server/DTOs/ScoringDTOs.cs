@@ -12,7 +12,20 @@ public record AnswerScoreDto(
     string Answer, 
     bool IsValid, 
     int Points, 
-    bool IsUnique);
+    bool IsUnique,
+    bool? DictionaryValid);
+
+/// <summary>
+/// Per-answer payload sent during the DisplayScoring (peer-review) phase.
+/// Contains dictionary validation metadata so the frontend can differentiate
+/// auto-accepted answers from those requiring peer votes.
+/// </summary>
+public record AnswerValidationDto(
+    int AnswerId,
+    int CategoryId,
+    string Answer,
+    bool? DictionaryValid,
+    bool RequiresPeerReview);
 
 public record RoundAnswersDto(
     List<PlayerAnswersDto> Players);
@@ -20,7 +33,7 @@ public record RoundAnswersDto(
 public record PlayerAnswersDto(
     int UserId,
     string Nickname,
-    Dictionary<int, string> Answers);
+    List<AnswerValidationDto> Answers);
 
 public record LeaderboardDto(
     string Reason, 
@@ -31,4 +44,3 @@ public record LeaderboardPlayerDto(
     string Nickname, 
     int CumulativeScore, 
     int Rank);
-

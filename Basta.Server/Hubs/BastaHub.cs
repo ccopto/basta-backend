@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 
+using Basta.Server.DTOs;
 using Basta.Server.Services;
 
 namespace Basta.Server.Hubs;
@@ -132,13 +133,15 @@ public class BastaHub : Hub
                 {
                     try
                     {
-                        // 2. Persist to DB for posterity and scoring
+                        // 2. Persist to DB and run Phase 1 dictionary validation
                         await _gameOperationService.SubmitAnswersAsync(code, session.CurrentRound, userId, answers);
 
                         // 3. Check if all players have submitted to trigger the validation phase
                         if (_gameSessionService.CheckAllAnswersSubmitted(code))
                         {
-                            var scoringData = _gameSessionService.GetCurrentRoundAnswers(code);
+                            // Build RoundAnswersDto from the DB (has DictionaryValid + RequiresPeerReview)
+                            var scoringData = await _gameOperationService.GetRoundAnswersDtoAsync(
+                                code, session.CurrentRound);
                             await Clients.Group(code).SendAsync("DisplayScoring", scoringData);
                         }
                     }

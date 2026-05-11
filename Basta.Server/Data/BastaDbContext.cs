@@ -67,14 +67,14 @@ public class BastaDbContext : DbContext
             entity.Property(e => e.SpanishName).IsRequired().HasMaxLength(100);
 
             entity.HasData(
-                new Category { CategoryId = 1, EnglishName = "Name", SpanishName = "Nombre" },
-                new Category { CategoryId = 2, EnglishName = "Animal", SpanishName = "Animal" },
-                new Category { CategoryId = 3, EnglishName = "City/Country", SpanishName = "Ciudad/País" },
-                new Category { CategoryId = 4, EnglishName = "Food/Drink", SpanishName = "Comida/Bebida" },
-                new Category { CategoryId = 5, EnglishName = "Color", SpanishName = "Color" },
-                new Category { CategoryId = 6, EnglishName = "Thing", SpanishName = "Cosa" },
-                new Category { CategoryId = 7, EnglishName = "Profession", SpanishName = "Profesión" },
-                new Category { CategoryId = 8, EnglishName = "Brand", SpanishName = "Marca" }
+                new Category { CategoryId = 1, EnglishName = "Name",         SpanishName = "Nombre",       ValidationType = CategoryValidationType.Name },
+                new Category { CategoryId = 2, EnglishName = "Animal",       SpanishName = "Animal",       ValidationType = CategoryValidationType.Animal },
+                new Category { CategoryId = 3, EnglishName = "City/Country", SpanishName = "Ciudad/País",  ValidationType = CategoryValidationType.City },
+                new Category { CategoryId = 4, EnglishName = "Food/Drink",   SpanishName = "Comida/Bebida",ValidationType = CategoryValidationType.CommonWord },
+                new Category { CategoryId = 5, EnglishName = "Color",        SpanishName = "Color",        ValidationType = CategoryValidationType.CommonWord },
+                new Category { CategoryId = 6, EnglishName = "Thing",        SpanishName = "Cosa",         ValidationType = CategoryValidationType.CommonWord },
+                new Category { CategoryId = 7, EnglishName = "Profession",   SpanishName = "Profesión",    ValidationType = CategoryValidationType.CommonWord },
+                new Category { CategoryId = 8, EnglishName = "Brand",        SpanishName = "Marca",        ValidationType = CategoryValidationType.CommonWord }
             );
         });
 

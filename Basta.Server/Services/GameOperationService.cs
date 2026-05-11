@@ -19,16 +19,22 @@ public class GameOperationService : IGameOperationService
 {
     private readonly BastaDbContext _context;
     private readonly IGameSessionService _gameSessionService;
+    private readonly IDictionaryService _dictionaryService;
 
-    public GameOperationService(BastaDbContext context, IGameSessionService gameSessionService)
+    public GameOperationService(
+        BastaDbContext context,
+        IGameSessionService gameSessionService,
+        IDictionaryService dictionaryService)
     {
         _context = context;
         _gameSessionService = gameSessionService;
+        _dictionaryService = dictionaryService;
     }
 
     public async Task<CreateGameResult> CreateGameAsync(
         string nickname,
         string preferredLanguage,
+        string language,
         int totalRounds,
         int timerDuration,
         List<int> categoryIds,
@@ -60,7 +66,8 @@ public class GameOperationService : IGameOperationService
                 GameId = sessionCode,
                 HostUserId = host.UserId,
                 TotalRounds = totalRounds,
-                TimerDuration = timerDuration
+                TimerDuration = timerDuration,
+                Language = language
             };
             _context.Games.Add(game);
 
@@ -155,19 +162,43 @@ public class GameOperationService : IGameOperationService
         Dictionary<int, string> answers,
         CancellationToken cancellationToken = default)
     {
-        // 1. Create RoundAnswer entities for each submitted category
-        var roundAnswers = answers.Select(kvp => new RoundAnswer
+        // 1. Fetch the game language and category validation types
+        var game = await _context.Games
+            .AsNoTracking()
+            .FirstOrDefaultAsync(g => g.GameId == code, cancellationToken);
+        var language = game?.Language ?? "en";
+
+        var categoryTypes = await _context.Categories
+            .AsNoTracking()
+            .Where(c => answers.Keys.Contains(c.CategoryId))
+            .ToDictionaryAsync(c => c.CategoryId, c => c.ValidationType, cancellationToken);
+
+        // 2. Create RoundAnswer entities, running Phase 1 dictionary check for each
+        var roundAnswers = answers.Select(kvp =>
         {
-            GameId = code,
-            RoundNumber = roundNumber,
-            UserId = userId,
-            CategoryId = kvp.Key,
-            SubmittedAnswer = kvp.Value?.Trim() ?? string.Empty,
-            IsValid = null, // To be scored later
-            PointsAwarded = 0
+            var answer = kvp.Value?.Trim() ?? string.Empty;
+            var validationType = categoryTypes.TryGetValue(kvp.Key, out var vt) ? vt : CategoryValidationType.CommonWord;
+
+            var dictValid = !string.IsNullOrWhiteSpace(answer)
+                && answer.Length >= 2
+                && _dictionaryService.IsValidWord(answer, language, validationType);
+
+            return new RoundAnswer
+            {
+                GameId = code,
+                RoundNumber = roundNumber,
+                UserId = userId,
+                CategoryId = kvp.Key,
+                SubmittedAnswer = answer,
+                DictionaryValid = dictValid,
+                RequiresPeerReview = !dictValid,
+                // Phase 1 pass: auto-accept. Phase 1 fail: leave null (peer decides).
+                IsValid = dictValid ? true : null,
+                PointsAwarded = 0
+            };
         }).ToList();
 
-        // 2. Persist to DB
+        // 3. Persist to DB
         _context.RoundAnswers.AddRange(roundAnswers);
         await _context.SaveChangesAsync(cancellationToken);
     }
@@ -196,5 +227,39 @@ public class GameOperationService : IGameOperationService
         // 3. Persist changes
         await _context.SaveChangesAsync(cancellationToken);
     }
-}
 
+    public async Task<RoundAnswersDto> GetRoundAnswersDtoAsync(
+        string gameId,
+        int roundNumber,
+        CancellationToken cancellationToken = default)
+    {
+        var roundAnswers = await _context.RoundAnswers
+            .Where(a => a.GameId == gameId && a.RoundNumber == roundNumber)
+            .ToListAsync(cancellationToken);
+
+        var gamePlayers = await _context.GamePlayers
+            .Include(gp => gp.User)
+            .Where(gp => gp.GameId == gameId)
+            .ToListAsync(cancellationToken);
+
+        var playerDtos = gamePlayers.Select(gp =>
+        {
+            var playerAnswers = roundAnswers
+                .Where(a => a.UserId == gp.UserId)
+                .Select(a => new AnswerValidationDto(
+                    a.RoundAnswerId,
+                    a.CategoryId,
+                    a.SubmittedAnswer,
+                    a.DictionaryValid,
+                    a.RequiresPeerReview))
+                .ToList();
+
+            return new PlayerAnswersDto(
+                gp.UserId,
+                gp.User?.Nickname ?? "Unknown",
+                playerAnswers);
+        }).ToList();
+
+        return new RoundAnswersDto(playerDtos);
+    }
+}

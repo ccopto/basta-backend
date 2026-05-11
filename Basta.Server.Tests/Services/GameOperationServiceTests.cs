@@ -1,4 +1,5 @@
 using Basta.Server.Data;
+using Basta.Server.Entities;
 using Basta.Server.Services;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
@@ -20,6 +21,7 @@ public class GameOperationServiceTests : IDisposable
     private readonly SqliteConnection _connection;
     private readonly BastaDbContext _context;
     private readonly GameSessionService _sessionService;
+    private readonly Mock<IDictionaryService> _dictServiceMock;
     private readonly GameOperationService _sut;
 
     public GameOperationServiceTests()
@@ -40,8 +42,13 @@ public class GameOperationServiceTests : IDisposable
 
         var loggerMock = new Mock<ILogger<GameSessionService>>();
         _sessionService = new GameSessionService(loggerMock.Object);
-        _sut = new GameOperationService(_context, _sessionService);
 
+        // By default the dict service rejects everything (Phase 1 fail → peer review)
+        _dictServiceMock = new Mock<IDictionaryService>();
+        _dictServiceMock.Setup(d => d.IsValidWord(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CategoryValidationType>()))
+                        .Returns(false);
+
+        _sut = new GameOperationService(_context, _sessionService, _dictServiceMock.Object);
     }
 
     [Fact]
@@ -51,6 +58,7 @@ public class GameOperationServiceTests : IDisposable
         var result = await _sut.CreateGameAsync(
             nickname: "Alice",
             preferredLanguage: "en",
+            language: "en",
             totalRounds: 5,
             timerDuration: 60,
             categoryIds: new List<int> { 1 });
@@ -69,7 +77,7 @@ public class GameOperationServiceTests : IDisposable
         user!.Nickname.Should().Be("Alice");
         user.PreferredLanguage.Should().Be("en");
 
-        // Assert — Game was persisted
+        // Assert — Game was persisted with Language
         var game = await _context.Games
             .AsNoTracking()
             .FirstOrDefaultAsync(g => g.GameId == result.GameCode);
@@ -77,6 +85,7 @@ public class GameOperationServiceTests : IDisposable
         game!.HostUserId.Should().Be(result.HostUserId);
         game.TotalRounds.Should().Be(5);
         game.TimerDuration.Should().Be(60);
+        game.Language.Should().Be("en");
 
         // Assert — Host was added as a GamePlayer
         var player = await _context.GamePlayers
@@ -96,8 +105,8 @@ public class GameOperationServiceTests : IDisposable
     public async Task CreateGameAsync_MultipleGames_EachGetsUniqueCode()
     {
         // Act
-        var result1 = await _sut.CreateGameAsync("Alice", "en", 5, 60, new List<int> { 1 });
-        var result2 = await _sut.CreateGameAsync("Bob", "es", 3, 30, new List<int> { 1 });
+        var result1 = await _sut.CreateGameAsync("Alice", "en", "en", 5, 60, new List<int> { 1 });
+        var result2 = await _sut.CreateGameAsync("Bob", "es", "es", 3, 30, new List<int> { 1 });
 
         // Assert
         result1.GameCode.Should().NotBe(result2.GameCode);
@@ -124,11 +133,11 @@ public class GameOperationServiceTests : IDisposable
         await using var brokenContext = new BastaDbContext(brokenOptions);
         var isolatedLoggerMock = new Mock<ILogger<GameSessionService>>();
         var isolatedSessionService = new GameSessionService(isolatedLoggerMock.Object);
-        var brokenSut = new GameOperationService(brokenContext, isolatedSessionService);
+        var brokenSut = new GameOperationService(brokenContext, isolatedSessionService, _dictServiceMock.Object);
 
 
         // Act & Assert — the operation should throw
-        var act = async () => await brokenSut.CreateGameAsync("Charlie", "en", 5, 60, new List<int> { 1 });
+        var act = async () => await brokenSut.CreateGameAsync("Charlie", "en", "en", 5, 60, new List<int> { 1 });
         await act.Should().ThrowAsync<Exception>();
 
         // Assert — no orphaned session remains
@@ -141,11 +150,12 @@ public class GameOperationServiceTests : IDisposable
         // still works, meaning no state was corrupted.
         isolatedSessionService.CreateSession(1, "Host", 3, 30, new List<int> { 1 }).Should().NotBeNullOrWhiteSpace();
     }
+
     [Fact]
     public async Task JoinGameAsync_ValidInput_CreatesUserAndPlayerMapping()
     {
         // Arrange
-        var createResult = await _sut.CreateGameAsync("Host", "en", 5, 60, new List<int> { 1 });
+        var createResult = await _sut.CreateGameAsync("Host", "en", "en", 5, 60, new List<int> { 1 });
 
         // Act
         var joinResult = await _sut.JoinGameAsync(createResult.GameCode, "Guest", "es");
@@ -172,14 +182,17 @@ public class GameOperationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SubmitAnswersAsync_PersistsMultipleAnswers()
+    public async Task SubmitAnswersAsync_PersistsMultipleAnswers_WithDictionaryValidation()
     {
-        // Arrange
-        var result = await _sut.CreateGameAsync("Host", "en", 5, 60, new List<int> { 1 });
-        var answers = new Dictionary<int, string> 
-        { 
-            { 1, "Apple" }, 
-            { 2, "Banana" } 
+        // Arrange — mock "apple" as valid, everything else invalid
+        _dictServiceMock.Setup(d => d.IsValidWord("apple", "en", It.IsAny<CategoryValidationType>())).Returns(true);
+        _dictServiceMock.Setup(d => d.IsValidWord("banana", "en", It.IsAny<CategoryValidationType>())).Returns(false);
+
+        var result = await _sut.CreateGameAsync("Host", "en", "en", 5, 60, new List<int> { 1 });
+        var answers = new Dictionary<int, string>
+        {
+            { 1, "apple" },
+            { 2, "banana" }
         };
 
         // Act
@@ -192,8 +205,16 @@ public class GameOperationServiceTests : IDisposable
             .ToListAsync();
 
         persisted.Should().HaveCount(2);
-        persisted.Should().Contain(a => a.CategoryId == 1 && a.SubmittedAnswer == "Apple");
-        persisted.Should().Contain(a => a.CategoryId == 2 && a.SubmittedAnswer == "Banana");
+
+        var appleAnswer = persisted.First(a => a.SubmittedAnswer == "apple");
+        appleAnswer.DictionaryValid.Should().BeTrue();
+        appleAnswer.RequiresPeerReview.Should().BeFalse();
+        appleAnswer.IsValid.Should().BeTrue(); // auto-accepted
+
+        var bananaAnswer = persisted.First(a => a.SubmittedAnswer == "banana");
+        bananaAnswer.DictionaryValid.Should().BeFalse();
+        bananaAnswer.RequiresPeerReview.Should().BeTrue();
+        bananaAnswer.IsValid.Should().BeNull(); // awaiting peer vote
     }
 
     public void Dispose()

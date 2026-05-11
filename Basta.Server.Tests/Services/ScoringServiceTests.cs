@@ -59,18 +59,20 @@ public class ScoringServiceTests : IDisposable
             new GamePlayer { GameId = gameId, UserId = 2, CumulativeScore = 0 }
         );
 
-        // 3. Create Answers
+        // 3. Create Answers — using cascade validation model
+        // DictionaryValid=true  → auto-accepted (scores regardless of IsValid)
+        // DictionaryValid=false + IsValid=true → peer-approved (scores)
+        // DictionaryValid=false + IsValid=false → rejected (0 pts)
         _context.RoundAnswers.AddRange(
-            // User 1: Unique valid (10), Shared valid (5), Invalid (0)
-            new RoundAnswer { GameId = gameId, RoundNumber = roundNumber, UserId = 1, CategoryId = 1, SubmittedAnswer = "Apple", IsValid = true },
-            new RoundAnswer { GameId = gameId, RoundNumber = roundNumber, UserId = 1, CategoryId = 2, SubmittedAnswer = "Apricot", IsValid = true },
-            new RoundAnswer { GameId = gameId, RoundNumber = roundNumber, UserId = 1, CategoryId = 3, SubmittedAnswer = "Artichoke", IsValid = false },
+            // User 1: Unique valid via dict (10), Shared valid via dict (5), Invalid via peer (0)
+            new RoundAnswer { GameId = gameId, RoundNumber = roundNumber, UserId = 1, CategoryId = 1, SubmittedAnswer = "Apple",     IsValid = true,  DictionaryValid = true,  RequiresPeerReview = false },
+            new RoundAnswer { GameId = gameId, RoundNumber = roundNumber, UserId = 1, CategoryId = 2, SubmittedAnswer = "Apricot",   IsValid = true,  DictionaryValid = true,  RequiresPeerReview = false },
+            new RoundAnswer { GameId = gameId, RoundNumber = roundNumber, UserId = 1, CategoryId = 3, SubmittedAnswer = "Artichoke", IsValid = false, DictionaryValid = false, RequiresPeerReview = true  },
 
-            // User 2: Unique valid (10), Shared valid (5), Wrong Letter (0)
-            new RoundAnswer { GameId = gameId, RoundNumber = roundNumber, UserId = 2, CategoryId = 1, SubmittedAnswer = "Avocado", IsValid = true },
-            new RoundAnswer { GameId = gameId, RoundNumber = roundNumber, UserId = 2, CategoryId = 2, SubmittedAnswer = "apricot ", IsValid = true }, // Shared with Alice
-            new RoundAnswer { GameId = gameId, RoundNumber = roundNumber, UserId = 2, CategoryId = 3, SubmittedAnswer = "Cherry", IsValid = true }   // Starts with C, should be 0
-
+            // User 2: Unique valid via dict (10), Shared valid via dict (5), Wrong Letter (0)
+            new RoundAnswer { GameId = gameId, RoundNumber = roundNumber, UserId = 2, CategoryId = 1, SubmittedAnswer = "Avocado",  IsValid = true,  DictionaryValid = true,  RequiresPeerReview = false },
+            new RoundAnswer { GameId = gameId, RoundNumber = roundNumber, UserId = 2, CategoryId = 2, SubmittedAnswer = "apricot ", IsValid = true,  DictionaryValid = true,  RequiresPeerReview = false }, // Shared with Alice
+            new RoundAnswer { GameId = gameId, RoundNumber = roundNumber, UserId = 2, CategoryId = 3, SubmittedAnswer = "Cherry",   IsValid = true,  DictionaryValid = true,  RequiresPeerReview = false }  // Starts with C, should be 0
         );
 
         await _context.SaveChangesAsync();
