@@ -348,5 +348,24 @@ public class GameSessionServiceTests
         session.TimerDuration.Should().Be(newTimer);
         session.SelectedCategoryIds.Should().BeEquivalentTo(newCategories);
     }
+
+    [Fact]
+    public void SubmitValidation_DuplicateSubmissions_ReturnsTrueOnlyOnce()
+    {
+        // Arrange
+        var code = _sut.CreateSession(1, "Host", 3, 30, new List<int> { 1 });
+        _sut.TryAddPlayer(code, 2, "Guest", out _);
+        
+        // Act & Assert
+        // First user validates
+        _sut.SubmitValidation(code, 1).Should().BeFalse(); // 1/2 validated
+        
+        // Second user validates (reaches threshold)
+        _sut.SubmitValidation(code, 2).Should().BeTrue();  // 2/2 validated -> triggers scoring
+        
+        // Second user (or any user) validates AGAIN
+        _sut.SubmitValidation(code, 2).Should().BeFalse(); // Already met, should not return true again
+        _sut.SubmitValidation(code, 1).Should().BeFalse(); 
+    }
 }
 

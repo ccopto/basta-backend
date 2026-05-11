@@ -297,8 +297,9 @@ public class GameSessionService : IGameSessionService
         if (!_sessions.TryGetValue(code, out var session)) return false;
         lock (session)
         {
+            if (session.PlayersValidated.Contains(userId)) return false;
             session.PlayersValidated.Add(userId);
-            return session.PlayersValidated.Count >= session.Players.Count;
+            return session.PlayersValidated.Count == session.Players.Count;
         }
     }
 
