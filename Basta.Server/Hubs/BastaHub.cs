@@ -10,17 +10,20 @@ public class BastaHub : Hub
     private readonly IGameSessionService _gameSessionService;
     private readonly IGameOperationService _gameOperationService;
     private readonly IScoringService _scoringService;
+    private readonly IHubContext<BastaHub> _hubContext;
     private readonly ILogger<BastaHub> _logger;
 
     public BastaHub(
         IGameSessionService gameSessionService, 
         IGameOperationService gameOperationService,
         IScoringService scoringService,
+        IHubContext<BastaHub> hubContext,
         ILogger<BastaHub> logger)
     {
         _gameSessionService = gameSessionService;
         _gameOperationService = gameOperationService;
         _scoringService = scoringService;
+        _hubContext = hubContext;
         _logger = logger;
     }
 
@@ -190,7 +193,8 @@ public class BastaHub : Hub
             {
                 await Task.Delay(session.TimerDuration * 1000, cancellationToken);
                 // If we reach here, the timer expired naturally
-                await LockRoundInternal(code, "Timer");
+                _gameSessionService.LockRound(code);
+                await _hubContext.Clients.Group(code).SendAsync("RoundStopped", new { callerNickname = "Timer" });
             }
             catch (TaskCanceledException)
             {
