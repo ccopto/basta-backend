@@ -53,6 +53,9 @@ public class BastaHubTests
         // Default mock behavior for Clients.Group(code)
         _mockClients.Setup(c => c.Group(It.IsAny<string>())).Returns(_mockClientProxy.Object);
         _mockClients.Setup(c => c.Caller).Returns(_mockSingleClientProxy.Object);
+        _mockOperationService.Setup(o => o.ValidatePlayerAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _mockSessionService.Setup(s => s.IsRoundAcceptingAnswers(It.IsAny<string>())).Returns(true);
     }
 
     [Fact]
@@ -218,7 +221,6 @@ public class BastaHubTests
 
     [Fact]
     public async Task UpdateGameSettings_CallsService_WhenHost()
-
     {
         // Arrange
         var code = "ABCD";
@@ -227,16 +229,18 @@ public class BastaHubTests
         var rounds = 10;
         var timer = 45;
         var categories = new List<int> { 1, 2 };
+        var language = "es";
 
         var items = new Dictionary<object, object?> { { "GameCode", code }, { "UserId", userId } };
         _mockContext.Setup(c => c.Items).Returns(items);
         _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
 
         // Act
-        await _sut.UpdateGameSettings(rounds, timer, categories);
+        await _sut.UpdateGameSettings(rounds, timer, categories, language);
 
         // Assert
-        _mockSessionService.Verify(s => s.UpdateSessionSettings(code, rounds, timer, categories), Times.Once);
+        _mockSessionService.Verify(s => s.UpdateSessionSettings(code, rounds, timer, categories, language), Times.Once);
+        _mockOperationService.Verify(o => o.UpdateGameSettingsAsync(code, rounds, timer, language, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -247,16 +251,17 @@ public class BastaHubTests
         var userId = 2;
         var hostUserId = 1; // Not the caller
         var session = new GameSession { HostUserId = hostUserId };
+        var language = "es";
 
         var items = new Dictionary<object, object?> { { "GameCode", code }, { "UserId", userId } };
         _mockContext.Setup(c => c.Items).Returns(items);
         _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
 
         // Act
-        await _sut.UpdateGameSettings(5, 60, new List<int> { 1 });
+        await _sut.UpdateGameSettings(5, 60, new List<int> { 1 }, language);
 
         // Assert
-        _mockSessionService.Verify(s => s.UpdateSessionSettings(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<List<int>>()), Times.Never);
+        _mockSessionService.Verify(s => s.UpdateSessionSettings(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<List<int>>(), It.IsAny<string>()), Times.Never);
         _mockSingleClientProxy.Verify(p => p.SendCoreAsync("Error", It.Is<object?[]>(o => o.Length > 0 && o[0]!.ToString()!.Contains("Only the host")), default), Times.Once);
     }
 
@@ -373,6 +378,295 @@ public class BastaHubTests
         _mockOperationService.Verify(o => o.UpdateValidationAsync(code, 1, userId, validations, It.IsAny<CancellationToken>()), Times.Once);
         _mockScoringService.Verify(s => s.CalculateAndAwardPointsAsync(code, 1, 'A'), Times.Once);
         _mockClientProxy.Verify(c => c.SendCoreAsync("ReceiveGameScore", It.Is<object?[]>(o => (List<PlayerScoreDto>)o[0]! == scores), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task JoinGame_ThrowsHubException_AndDoesNotJoinGroup_WhenPlayerIsNotRegistered()
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 99;
+        var nickname = "Intruder";
+        var connectionId = "conn-999";
+
+        _mockContext.Setup(c => c.ConnectionId).Returns(connectionId);
+        _mockContext.Setup(c => c.Items).Returns(new Dictionary<object, object?>());
+        _mockOperationService
+            .Setup(o => o.ValidatePlayerAsync(code, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        var mockGroups = new Mock<IGroupManager>();
+        _sut.Groups = mockGroups.Object;
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<HubException>(() => _sut.JoinGame(code, userId, nickname));
+        Assert.Equal("Player is not registered for this game session.", ex.Message);
+
+        // Verify that Groups.AddToGroupAsync was never called
+        mockGroups.Verify(g => g.AddToGroupAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        // Verify that GetLobbySnapshot was never called
+        _mockSessionService.Verify(s => s.GetLobbySnapshot(code), Times.Never);
+    }
+
+    [Fact]
+    public async Task OnDisconnectedAsync_CurrentRoundGreaterThanZero_MarksPlayerOfflineAndBroadcasts()
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 42;
+        var session = new GameSession { Code = code, CurrentRound = 1 };
+        var snapshot = new LobbySnapshot { GameCode = code };
+
+        _mockContext.Setup(c => c.Items).Returns(new Dictionary<object, object?>
+        {
+            { "GameCode", code },
+            { "UserId", userId }
+        });
+        _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
+        _mockSessionService.Setup(s => s.GetLobbySnapshot(code)).Returns(snapshot);
+        _mockSessionService.Setup(s => s.MarkPlayerOfflineAndCheckQuorum(code, userId)).Returns((false, false));
+
+        // Act
+        await _sut.OnDisconnectedAsync(null);
+
+        // Assert
+        _mockSessionService.Verify(s => s.MarkPlayerOfflineAndCheckQuorum(code, userId), Times.Once);
+        _mockSessionService.Verify(s => s.RemovePlayer(code, userId), Times.Never);
+        _mockClients.Verify(c => c.Group(code), Times.Once);
+        _mockClientProxy.Verify(p => p.SendCoreAsync("ReceiveLobbyUpdate", It.Is<object?[]>(o => (LobbySnapshot)o[0]! == snapshot), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task OnDisconnectedAsync_CurrentRoundZero_MarksPlayerOfflineAndDoesNotRemovePlayerImmediately()
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 42;
+        var session = new GameSession { Code = code, CurrentRound = 0 };
+        var snapshot = new LobbySnapshot { GameCode = code };
+
+        _mockContext.Setup(c => c.Items).Returns(new Dictionary<object, object?>
+        {
+            { "GameCode", code },
+            { "UserId", userId }
+        });
+        _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
+        _mockSessionService.Setup(s => s.GetLobbySnapshot(code)).Returns(snapshot);
+        _mockSessionService.Setup(s => s.MarkPlayerOfflineAndCheckQuorum(code, userId)).Returns((false, false));
+
+        // Act
+        await _sut.OnDisconnectedAsync(null);
+
+        // Assert
+        _mockSessionService.Verify(s => s.MarkPlayerOfflineAndCheckQuorum(code, userId), Times.Once);
+        // Verify it was not removed synchronously
+        _mockSessionService.Verify(s => s.RemovePlayer(code, userId), Times.Never);
+        _mockClients.Verify(c => c.Group(code), Times.Once);
+        _mockClientProxy.Verify(p => p.SendCoreAsync("ReceiveLobbyUpdate", It.Is<object?[]>(o => (LobbySnapshot)o[0]! == snapshot), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task SubmitAnswers_WhenDbThrowsDbUpdateExceptionAndHasSubmitted_LogsWarningAndReturnsCleanly()
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 1;
+        var currentRound = 2;
+        var session = new GameSession { Code = code, CurrentRound = currentRound };
+        var answers = new Dictionary<int, string> { { 1, "Answer" } };
+
+        _mockContext.Setup(c => c.Items).Returns(new Dictionary<object, object?>
+        {
+            { "GameCode", code },
+            { "UserId", userId }
+        });
+        _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
+        _mockOperationService
+            .Setup(o => o.SubmitAnswersAsync(code, currentRound, userId, answers, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Microsoft.EntityFrameworkCore.DbUpdateException("Constraint violation"));
+        _mockOperationService
+            .Setup(o => o.HasSubmittedAsync(code, currentRound, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true); // Yes, already submitted!
+
+        // Act
+        await _sut.SubmitAnswers(answers);
+
+        // Assert: should not throw, should verify HasSubmittedAsync was checked
+        _mockOperationService.Verify(o => o.HasSubmittedAsync(code, currentRound, userId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SubmitAnswers_WhenDbThrowsDbUpdateExceptionAndNotSubmitted_ThrowsHubException()
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 1;
+        var currentRound = 2;
+        var session = new GameSession { Code = code, CurrentRound = currentRound };
+        var answers = new Dictionary<int, string> { { 1, "Answer" } };
+
+        _mockContext.Setup(c => c.Items).Returns(new Dictionary<object, object?>
+        {
+            { "GameCode", code },
+            { "UserId", userId }
+        });
+        _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
+        _mockOperationService
+            .Setup(o => o.SubmitAnswersAsync(code, currentRound, userId, answers, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Microsoft.EntityFrameworkCore.DbUpdateException("Constraint violation"));
+        _mockOperationService
+            .Setup(o => o.HasSubmittedAsync(code, currentRound, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false); // No, not submitted! Genuine DB error.
+
+        // Act & Assert
+        await Assert.ThrowsAsync<HubException>(() => _sut.SubmitAnswers(answers));
+        _mockOperationService.Verify(o => o.HasSubmittedAsync(code, currentRound, userId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateGameSettings_ValidationThrows_DoesNotCallDbOrUpdateSession()
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 1;
+        var session = new GameSession { HostUserId = userId };
+        var categoryIds = new List<int>(); // Empty categories, should trigger validation failure
+
+        _mockContext.Setup(c => c.Items).Returns(new Dictionary<object, object?>
+        {
+            { "GameCode", code },
+            { "UserId", userId }
+        });
+        _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
+        _mockSessionService
+            .Setup(s => s.ValidateSessionSettings(5, 60, categoryIds))
+            .Throws(new ArgumentException("At least one category must be selected."));
+
+        // Act
+        await _sut.UpdateGameSettings(5, 60, categoryIds, "en");
+
+        // Assert
+        _mockSessionService.Verify(s => s.ValidateSessionSettings(5, 60, categoryIds), Times.Once);
+        _mockOperationService.Verify(o => o.UpdateGameSettingsAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockSessionService.Verify(s => s.UpdateSessionSettings(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<List<int>>(), It.IsAny<string>()), Times.Never);
+        _mockSingleClientProxy.Verify(c => c.SendCoreAsync("Error", It.Is<object?[]>(o => o[0]!.ToString() == "At least one category must be selected."), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateGameSettings_DbThrows_DoesNotUpdateSessionSettings()
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 1;
+        var session = new GameSession { HostUserId = userId };
+        var categoryIds = new List<int> { 1 };
+
+        _mockContext.Setup(c => c.Items).Returns(new Dictionary<object, object?>
+        {
+            { "GameCode", code },
+            { "UserId", userId }
+        });
+        _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
+        _mockOperationService
+            .Setup(o => o.UpdateGameSettingsAsync(code, 5, 60, "en", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new System.Exception("Database connection error"));
+
+        // Act & Assert
+        await Assert.ThrowsAsync<System.Exception>(() => _sut.UpdateGameSettings(5, 60, categoryIds, "en"));
+
+        _mockSessionService.Verify(s => s.ValidateSessionSettings(5, 60, categoryIds), Times.Once);
+        _mockOperationService.Verify(o => o.UpdateGameSettingsAsync(code, 5, 60, "en", It.IsAny<CancellationToken>()), Times.Once);
+        _mockSessionService.Verify(s => s.UpdateSessionSettings(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<List<int>>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateGameSettings_Succeeds_UpdatesBoth()
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 1;
+        var session = new GameSession { HostUserId = userId };
+        var categoryIds = new List<int> { 1 };
+        var snapshot = new LobbySnapshot { GameCode = code };
+
+        _mockContext.Setup(c => c.Items).Returns(new Dictionary<object, object?>
+        {
+            { "GameCode", code },
+            { "UserId", userId }
+        });
+        _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
+        _mockSessionService.Setup(s => s.GetLobbySnapshot(code)).Returns(snapshot);
+
+        // Act
+        await _sut.UpdateGameSettings(5, 60, categoryIds, "en");
+
+        // Assert
+        _mockSessionService.Verify(s => s.ValidateSessionSettings(5, 60, categoryIds), Times.Once);
+        _mockOperationService.Verify(o => o.UpdateGameSettingsAsync(code, 5, 60, "en", It.IsAny<CancellationToken>()), Times.Once);
+        _mockSessionService.Verify(s => s.UpdateSessionSettings(code, 5, 60, categoryIds, "en"), Times.Once);
+        _mockClientProxy.Verify(c => c.SendCoreAsync("ReceiveLobbyUpdate", It.Is<object?[]>(o => (LobbySnapshot)o[0]! == snapshot), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task OnDisconnectedAsync_AnswersQuorumTipped_BroadcastsDisplayScoring()
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 42;
+        var session = new GameSession { Code = code, CurrentRound = 1 };
+        var scoringData = new RoundAnswersDto(new List<PlayerAnswersDto>());
+
+        _mockContext.Setup(c => c.Items).Returns(new Dictionary<object, object?>
+        {
+            { "GameCode", code },
+            { "UserId", userId }
+        });
+        _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
+        _mockSessionService
+            .Setup(s => s.MarkPlayerOfflineAndCheckQuorum(code, userId))
+            .Returns((true, false)); // Answers tipped!
+        _mockOperationService
+            .Setup(o => o.GetRoundAnswersDtoAsync(code, 1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(scoringData);
+
+        // Act
+        await _sut.OnDisconnectedAsync(null);
+
+        // Assert
+        _mockSessionService.Verify(s => s.MarkPlayerOfflineAndCheckQuorum(code, userId), Times.Once);
+        _mockOperationService.Verify(o => o.GetRoundAnswersDtoAsync(code, 1, It.IsAny<CancellationToken>()), Times.Once);
+        _mockClientProxy.Verify(c => c.SendCoreAsync("DisplayScoring", It.Is<object?[]>(o => (RoundAnswersDto)o[0]! == scoringData), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task OnDisconnectedAsync_ValidationQuorumTipped_CalculatesAndBroadcastsReceiveGameScore()
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 42;
+        var session = new GameSession { Code = code, CurrentRound = 1, CurrentLetter = 'B' };
+        var finalScores = new List<PlayerScoreDto>();
+
+        _mockContext.Setup(c => c.Items).Returns(new Dictionary<object, object?>
+        {
+            { "GameCode", code },
+            { "UserId", userId }
+        });
+        _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
+        _mockSessionService
+            .Setup(s => s.MarkPlayerOfflineAndCheckQuorum(code, userId))
+            .Returns((false, true)); // Validation tipped!
+        _mockScoringService
+            .Setup(s => s.CalculateAndAwardPointsAsync(code, 1, 'B'))
+            .ReturnsAsync(finalScores);
+
+        // Act
+        await _sut.OnDisconnectedAsync(null);
+
+        // Assert
+        _mockSessionService.Verify(s => s.MarkPlayerOfflineAndCheckQuorum(code, userId), Times.Once);
+        _mockScoringService.Verify(s => s.CalculateAndAwardPointsAsync(code, 1, 'B'), Times.Once);
+        _mockClientProxy.Verify(c => c.SendCoreAsync("ReceiveGameScore", It.Is<object?[]>(o => (List<PlayerScoreDto>)o[0]! == finalScores), default), Times.Once);
     }
 }
 

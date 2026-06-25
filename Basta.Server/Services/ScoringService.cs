@@ -35,7 +35,7 @@ public class ScoringService : IScoringService
             .Where(a => (a.DictionaryValid == true || (a.DictionaryValid == false && a.IsValid == true)) &&
                         !string.IsNullOrWhiteSpace(a.SubmittedAnswer) &&
                         a.SubmittedAnswer.Trim().StartsWith(roundLetter.ToString(), StringComparison.OrdinalIgnoreCase))
-            .GroupBy(a => a.SubmittedAnswer.Trim().ToLowerInvariant())
+            .GroupBy(a => (a.CategoryId, Answer: a.SubmittedAnswer.Trim().ToLowerInvariant()))
             .ToDictionary(g => g.Key, g => g.Count());
 
         var scores = new List<PlayerScoreDto>();
@@ -59,7 +59,8 @@ public class ScoringService : IScoringService
                 {
                     actuallyValid = true;
                     var normalized = answer.SubmittedAnswer.Trim().ToLowerInvariant();
-                    if (validAnswers.TryGetValue(normalized, out var count))
+                    var compositeKey = (answer.CategoryId, Answer: normalized);
+                    if (validAnswers.TryGetValue(compositeKey, out var count))
                     {
                         if (count == 1)
                         {

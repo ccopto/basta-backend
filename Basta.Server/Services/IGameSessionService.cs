@@ -43,6 +43,8 @@ public interface IGameSessionService
     /// </summary>
     void LockRound(string code);
 
+    bool IsRoundAcceptingAnswers(string code);
+
     /// <summary>
     /// Records a player's answers for the current round. 
     /// Returns false if the round is already locked.
@@ -52,7 +54,7 @@ public interface IGameSessionService
     /// <summary>
     /// Updates the game session settings (rounds, timer, categories).
     /// </summary>
-    void UpdateSessionSettings(string code, int totalRounds, int timerDuration, List<int> categoryIds);
+    void UpdateSessionSettings(string code, int totalRounds, int timerDuration, List<int> categoryIds, string language);
 
     /// <summary>
     /// Checks if all currently connected players have submitted their answers for the round.
@@ -70,6 +72,13 @@ public interface IGameSessionService
     /// </summary>
     /// <returns>True if ALL currently connected players have validated.</returns>
     bool SubmitValidation(string code, int userId);
+
+    void MarkPlayerOffline(string code, int userId);
+    void MarkPlayerOnline(string code, int userId);
+
+    void ValidateSessionSettings(int totalRounds, int timerDuration, List<int> categoryIds);
+    bool TryRemoveIfStillOffline(string code, int userId);
+    (bool answersQuorumMet, bool validationQuorumMet) MarkPlayerOfflineAndCheckQuorum(string code, int userId);
 }
 
 

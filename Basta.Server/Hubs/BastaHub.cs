@@ -29,13 +29,23 @@ public class BastaHub : Hub
 
     public async Task JoinGame(string code, int userId, string nickname)
     {
-        // 1. Add connection to the SignalR group for the specific game code.
         code = code.ToUpperInvariant();
+        
+        var isValid = await _gameOperationService.ValidatePlayerAsync(code, userId);
+        if (!isValid)
+        {
+            _logger.LogWarning("Player {UserId} ({Nickname}) is not registered for game {Code}.", userId, nickname, code);
+            throw new HubException("Player is not registered for this game session.");
+        }
+
+        // 1. Add connection to the SignalR group for the specific game code.
         await Groups.AddToGroupAsync(Context.ConnectionId, code);
 
         // 2. Track userId mapped to this connection for disconnection handling later
         Context.Items["UserId"] = userId;
         Context.Items["GameCode"] = code;
+
+        _gameSessionService.MarkPlayerOnline(code, userId);
 
         // Defensively ensure the player is in the in-memory session.
         // This is idempotent — if the REST /join already registered them,
@@ -131,31 +141,43 @@ public class BastaHub : Hub
             var session = _gameSessionService.TryGetSession(code);
             if (session != null)
             {
-                // 1. First record in-memory. This checks if the round is already locked.
-                if (_gameSessionService.TrySubmitAnswers(code, userId, answers))
+                // 1. Check if the round is active or in grace period
+                if (!_gameSessionService.IsRoundAcceptingAnswers(code))
                 {
-                    try
-                    {
-                        // 2. Persist to DB and run Phase 1 dictionary validation
-                        await _gameOperationService.SubmitAnswersAsync(code, session.CurrentRound, userId, answers);
+                    return;
+                }
 
-                        // 3. Check if all players have submitted to trigger the validation phase
-                        if (_gameSessionService.CheckAllAnswersSubmitted(code))
-                        {
-                            // Build RoundAnswersDto from the DB (has DictionaryValid + RequiresPeerReview)
-                            var scoringData = await _gameOperationService.GetRoundAnswersDtoAsync(
-                                code, session.CurrentRound);
-                            await Clients.Group(code).SendAsync("DisplayScoring", scoringData);
-                        }
-                    }
-
-                    catch (Microsoft.EntityFrameworkCore.DbUpdateException ex)
+                try
+                {
+                    // 2. Persist to DB first and run Phase 1 dictionary validation
+                    await _gameOperationService.SubmitAnswersAsync(code, session.CurrentRound, userId, answers);
+                }
+                catch (Microsoft.EntityFrameworkCore.DbUpdateException ex)
+                {
+                    // Catch DbUpdateException. Check if duplicate via HasSubmittedAsync.
+                    var isDuplicate = await _gameOperationService.HasSubmittedAsync(code, session.CurrentRound, userId);
+                    if (isDuplicate)
                     {
-                        // Handle race condition: If another thread already persisted for this (Game, Round, User, Category),
-                        // we treat it as idempotent and just log a warning.
                         _logger.LogWarning(ex, "Duplicate submission detected for Game {Code}, Round {Round}, User {UserId}. Ignoring.", 
                             code, session.CurrentRound, userId);
+                        return;
                     }
+                    else
+                    {
+                        throw new HubException("Failed to persist answers to database.", ex);
+                    }
+                }
+
+                // 3. Record in memory only after DB success
+                _gameSessionService.TrySubmitAnswers(code, userId, answers);
+
+                // 4. Check if all players have submitted to trigger the validation phase
+                if (_gameSessionService.CheckAllAnswersSubmitted(code))
+                {
+                    // Build RoundAnswersDto from the DB (has DictionaryValid + RequiresPeerReview)
+                    var scoringData = await _gameOperationService.GetRoundAnswersDtoAsync(
+                        code, session.CurrentRound);
+                    await Clients.Group(code).SendAsync("DisplayScoring", scoringData);
                 }
             }
         }
@@ -217,7 +239,7 @@ public class BastaHub : Hub
     /// Updates the game session settings (rounds, timer, categories) for the current lobby.
     /// Only the host can perform this action.
     /// </summary>
-    public async Task UpdateGameSettings(int totalRounds, int timerDuration, List<int> categoryIds)
+    public async Task UpdateGameSettings(int totalRounds, int timerDuration, List<int> categoryIds, string language)
     {
         if (Context.Items.TryGetValue("GameCode", out var codeObj) && codeObj is string code &&
             Context.Items.TryGetValue("UserId", out var userIdObj) && userIdObj is int userId)
@@ -229,7 +251,20 @@ public class BastaHub : Hub
                 {
                     try
                     {
-                        _gameSessionService.UpdateSessionSettings(code, totalRounds, timerDuration, categoryIds);
+                        // 1. Validate inputs
+                        _gameSessionService.ValidateSessionSettings(totalRounds, timerDuration, categoryIds);
+
+                        // 2. Persist in database
+                        await _gameOperationService.UpdateGameSettingsAsync(code, totalRounds, timerDuration, language);
+
+                        // 3. Update memory state on success
+                        _gameSessionService.UpdateSessionSettings(code, totalRounds, timerDuration, categoryIds, language);
+
+                        var snapshot = _gameSessionService.GetLobbySnapshot(code);
+                        if (snapshot != null)
+                        {
+                            await Clients.Group(code).SendAsync("ReceiveLobbyUpdate", snapshot);
+                        }
                     }
                     catch (ArgumentException ex)
                     {
@@ -279,15 +314,48 @@ public class BastaHub : Hub
         if (Context.Items.TryGetValue("GameCode", out var codeObj) && codeObj is string code &&
             Context.Items.TryGetValue("UserId", out var userIdObj) && userIdObj is int userId)
         {
-            // Remove the user from the in-memory session tracking
-            _gameSessionService.RemovePlayer(code, userId);
-
-            // Fetch the updated snapshot to broadcast to the remaining players
-            var snapshot = _gameSessionService.GetLobbySnapshot(code);
-            
-            if (snapshot != null)
+            var session = _gameSessionService.TryGetSession(code);
+            if (session != null)
             {
-                await Clients.Group(code).SendAsync("ReceiveLobbyUpdate", snapshot);
+                var (answersTipped, validationTipped) = _gameSessionService.MarkPlayerOfflineAndCheckQuorum(code, userId);
+
+                if (answersTipped)
+                {
+                    var scoringData = await _gameOperationService.GetRoundAnswersDtoAsync(
+                        code, session.CurrentRound);
+                    await Clients.Group(code).SendAsync("DisplayScoring", scoringData);
+                }
+                else if (validationTipped)
+                {
+                    var finalScores = await _scoringService.CalculateAndAwardPointsAsync(
+                        code, 
+                        session.CurrentRound, 
+                        session.CurrentLetter ?? ' ');
+
+                    await Clients.Group(code).SendAsync("ReceiveGameScore", finalScores);
+                }
+
+                if (session.CurrentRound == 0)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(15));
+                        if (_gameSessionService.TryRemoveIfStillOffline(code, userId))
+                        {
+                            var snapshot = _gameSessionService.GetLobbySnapshot(code);
+                            if (snapshot != null)
+                            {
+                                await _hubContext.Clients.Group(code).SendAsync("ReceiveLobbyUpdate", snapshot);
+                            }
+                        }
+                    });
+                }
+
+                var snapshot = _gameSessionService.GetLobbySnapshot(code);
+                if (snapshot != null)
+                {
+                    await Clients.Group(code).SendAsync("ReceiveLobbyUpdate", snapshot);
+                }
             }
         }
         

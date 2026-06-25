@@ -164,6 +164,35 @@ public class GameSessionService : IGameSessionService
         }
     }
 
+    public bool IsRoundAcceptingAnswers(string code)
+    {
+        if (!_sessions.TryGetValue(code, out var session)) return false;
+
+        lock (session)
+        {
+            if (!session.RoundActive && !session.RoundLocked)
+            {
+                return false;
+            }
+
+            if (session.RoundLocked)
+            {
+                if (session.RoundLockedAt == null)
+                {
+                    return false;
+                }
+
+                var gracePeriod = TimeSpan.FromSeconds(3);
+                if (_timeProvider.GetUtcNow() - session.RoundLockedAt > gracePeriod)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+    }
+
     public bool TrySubmitAnswers(string code, int userId, Dictionary<int, string> answers)
     {
         if (!_sessions.TryGetValue(code, out var session)) return false;
@@ -207,7 +236,7 @@ public class GameSessionService : IGameSessionService
                 Nickname = kvp.Value,
                 Score = 0, // For now, score is 0 in the lobby
                 IsHost = kvp.Key == session.HostUserId,
-                IsOnline = true
+                IsOnline = !session.OfflinePlayers.Contains(kvp.Key)
             }).ToList();
 
             return new LobbySnapshot
@@ -229,7 +258,7 @@ public class GameSessionService : IGameSessionService
     public const int MinTimer = 30;
     public const int MaxTimer = 120;
 
-    public void UpdateSessionSettings(string code, int totalRounds, int timerDuration, List<int> categoryIds)
+    public void ValidateSessionSettings(int totalRounds, int timerDuration, List<int> categoryIds)
     {
         if (categoryIds == null || !categoryIds.Any())
         {
@@ -245,6 +274,11 @@ public class GameSessionService : IGameSessionService
         {
             throw new ArgumentOutOfRangeException(nameof(timerDuration), $"Timer duration must be between {MinTimer} and {MaxTimer} seconds.");
         }
+    }
+
+    public void UpdateSessionSettings(string code, int totalRounds, int timerDuration, List<int> categoryIds, string language)
+    {
+        ValidateSessionSettings(totalRounds, timerDuration, categoryIds);
 
         if (_sessions.TryGetValue(code, out var session))
         {
@@ -253,6 +287,7 @@ public class GameSessionService : IGameSessionService
                 session.TotalRounds = totalRounds;
                 session.TimerDuration = timerDuration;
                 session.SelectedCategoryIds = categoryIds;
+                session.Language = string.Equals(language, "es", StringComparison.OrdinalIgnoreCase) ? "es" : "en";
             }
         }
     }
@@ -262,7 +297,8 @@ public class GameSessionService : IGameSessionService
         if (!_sessions.TryGetValue(code, out var session)) return false;
         lock (session)
         {
-            return session.CurrentRoundAnswers.Count >= session.Players.Count;
+            var activePlayerCount = Math.Max(0, session.Players.Count - session.OfflinePlayers.Count);
+            return session.CurrentRoundAnswers.Count >= activePlayerCount;
         }
     }
 
@@ -299,7 +335,79 @@ public class GameSessionService : IGameSessionService
         {
             if (session.PlayersValidated.Contains(userId)) return false;
             session.PlayersValidated.Add(userId);
-            return session.PlayersValidated.Count == session.Players.Count;
+            var activePlayerCount = Math.Max(0, session.Players.Count - session.OfflinePlayers.Count);
+            return session.PlayersValidated.Count >= activePlayerCount;
+        }
+    }
+
+    public void MarkPlayerOffline(string code, int userId)
+    {
+        if (_sessions.TryGetValue(code, out var session))
+        {
+            lock (session)
+            {
+                session.OfflinePlayers.Add(userId);
+            }
+        }
+    }
+
+    public void MarkPlayerOnline(string code, int userId)
+    {
+        if (_sessions.TryGetValue(code, out var session))
+        {
+            lock (session)
+            {
+                session.OfflinePlayers.Remove(userId);
+            }
+        }
+    }
+
+    public (bool answersQuorumMet, bool validationQuorumMet) MarkPlayerOfflineAndCheckQuorum(string code, int userId)
+    {
+        if (!_sessions.TryGetValue(code, out var session)) return (false, false);
+        lock (session)
+        {
+            if (session.CurrentRound == 0)
+            {
+                session.OfflinePlayers.Add(userId);
+                return (false, false);
+            }
+
+            bool alreadyOffline = session.OfflinePlayers.Contains(userId);
+
+            int beforeOfflineCount = session.OfflinePlayers.Count;
+            int beforeActivePlayers = Math.Max(0, session.Players.Count - beforeOfflineCount);
+
+            bool wasAnswersMet = session.CurrentRoundAnswers.Count >= beforeActivePlayers;
+            bool wasValidationMet = session.PlayersValidated.Count >= beforeActivePlayers;
+
+            session.OfflinePlayers.Add(userId);
+
+            int afterOfflineCount = session.OfflinePlayers.Count;
+            int afterActivePlayers = Math.Max(0, session.Players.Count - afterOfflineCount);
+
+            bool isAnswersMet = session.CurrentRoundAnswers.Count >= afterActivePlayers;
+            bool isValidationMet = session.PlayersValidated.Count >= afterActivePlayers;
+
+            bool answersQuorumTipped = session.PlayersValidated.Count == 0 && !alreadyOffline && !wasAnswersMet && isAnswersMet;
+            bool validationQuorumTipped = !alreadyOffline && !wasValidationMet && isValidationMet;
+
+            return (answersQuorumTipped, validationQuorumTipped);
+        }
+    }
+
+    public bool TryRemoveIfStillOffline(string code, int userId)
+    {
+        if (!_sessions.TryGetValue(code, out var session)) return false;
+        lock (session)
+        {
+            if (session.OfflinePlayers.Contains(userId))
+            {
+                session.OfflinePlayers.Remove(userId);
+                session.Players.Remove(userId);
+                return true;
+            }
+            return false;
         }
     }
 

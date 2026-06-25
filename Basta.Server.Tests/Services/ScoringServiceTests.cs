@@ -147,6 +147,66 @@ public class ScoringServiceTests : IDisposable
         result.Players.First(p => p.Rank == 4).CumulativeScore.Should().Be(70);
     }
 
+    [Fact]
+    public async Task CalculateAndAwardPointsAsync_SameWordInDifferentCategories_AwardsTenPointsEach()
+    {
+        // Arrange
+        var gameId = "TEST_UNIQUE";
+        var roundNumber = 1;
+        var roundLetter = 'A';
+
+        // Create Users
+        var user1 = new User { UserId = 1, Nickname = "Alice" };
+        var user2 = new User { UserId = 2, Nickname = "Bob" };
+        _context.Users.AddRange(user1, user2);
+
+        // Create Game
+        var game = new Game
+        {
+            GameId = gameId,
+            HostUserId = 1,
+            TotalRounds = 3,
+            TimerDuration = 60
+        };
+        _context.Games.Add(game);
+
+        // Create GamePlayers
+        _context.GamePlayers.AddRange(
+            new GamePlayer { GameId = gameId, UserId = 1, CumulativeScore = 0 },
+            new GamePlayer { GameId = gameId, UserId = 2, CumulativeScore = 0 }
+        );
+
+        // Create Answers:
+        // Alice submits "Ant" in Category 1
+        // Bob submits "Ant" in Category 2 (different category)
+        // Alice submits "Apple" in Category 3
+        // Bob submits "Apple" in Category 3 (same category)
+        _context.RoundAnswers.AddRange(
+            new RoundAnswer { GameId = gameId, RoundNumber = roundNumber, UserId = 1, CategoryId = 1, SubmittedAnswer = "Ant", IsValid = true, DictionaryValid = true, RequiresPeerReview = false },
+            new RoundAnswer { GameId = gameId, RoundNumber = roundNumber, UserId = 2, CategoryId = 2, SubmittedAnswer = "Ant", IsValid = true, DictionaryValid = true, RequiresPeerReview = false },
+            
+            new RoundAnswer { GameId = gameId, RoundNumber = roundNumber, UserId = 1, CategoryId = 3, SubmittedAnswer = "Apple", IsValid = true, DictionaryValid = true, RequiresPeerReview = false },
+            new RoundAnswer { GameId = gameId, RoundNumber = roundNumber, UserId = 2, CategoryId = 3, SubmittedAnswer = "Apple", IsValid = true, DictionaryValid = true, RequiresPeerReview = false }
+        );
+
+        await _context.SaveChangesAsync();
+
+        // Act
+        var results = await _sut.CalculateAndAwardPointsAsync(gameId, roundNumber, roundLetter);
+
+        // Assert
+        var alice = results.First(r => r.UserId == 1);
+        var bob = results.First(r => r.UserId == 2);
+
+        // "Ant" in different categories should get 10 points each
+        alice.Answers.First(a => a.CategoryId == 1).Points.Should().Be(10);
+        bob.Answers.First(a => a.CategoryId == 2).Points.Should().Be(10);
+
+        // "Apple" in the same category (Category 3) should get 5 points each
+        alice.Answers.First(a => a.CategoryId == 3).Points.Should().Be(5);
+        bob.Answers.First(a => a.CategoryId == 3).Points.Should().Be(5);
+    }
+
     public void Dispose()
     {
         _connection.Close();

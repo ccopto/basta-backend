@@ -58,7 +58,7 @@ public class GameOperationService : IGameOperationService
             await _context.SaveChangesAsync(cancellationToken);
 
             // 2. Register the in-memory session (after UserId is available)
-            sessionCode = _gameSessionService.CreateSession(host.UserId, nickname, totalRounds, timerDuration, categoryIds, preferredLanguage);
+            sessionCode = _gameSessionService.CreateSession(host.UserId, nickname, totalRounds, timerDuration, categoryIds, language);
 
             // 3. Persist the Game entity
             var game = new Game
@@ -261,5 +261,29 @@ public class GameOperationService : IGameOperationService
         }).ToList();
 
         return new RoundAnswersDto(playerDtos);
+    }
+
+    public async Task<bool> ValidatePlayerAsync(string code, int userId, CancellationToken cancellationToken = default)
+    {
+        return await _context.GamePlayers.AnyAsync(gp => gp.GameId == code && gp.UserId == userId, cancellationToken);
+    }
+
+    public async Task UpdateGameSettingsAsync(string code, int totalRounds, int timerDuration, string language, CancellationToken cancellationToken = default)
+    {
+        var game = await _context.Games.FirstOrDefaultAsync(g => g.GameId == code, cancellationToken);
+        if (game != null)
+        {
+            game.TotalRounds = totalRounds;
+            game.TimerDuration = timerDuration;
+            game.Language = string.Equals(language, "es", StringComparison.OrdinalIgnoreCase) ? "es" : "en";
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    public async Task<bool> HasSubmittedAsync(string code, int roundNumber, int userId, CancellationToken cancellationToken = default)
+    {
+        return await _context.RoundAnswers.AnyAsync(
+            ra => ra.GameId == code && ra.RoundNumber == roundNumber && ra.UserId == userId,
+            cancellationToken);
     }
 }
