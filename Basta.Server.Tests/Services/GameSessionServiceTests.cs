@@ -367,5 +367,31 @@ public class GameSessionServiceTests
         _sut.SubmitValidation(code, 2).Should().BeFalse(); // Already met, should not return true again
         _sut.SubmitValidation(code, 1).Should().BeFalse(); 
     }
+
+    [Fact]
+    public void MarkPlayerOffline_AndOnline_UpdatesOfflinePlayersAndLobbySnapshot()
+    {
+        // Arrange
+        var code = _sut.CreateSession(1, "Host", 5, 60, new List<int> { 1 });
+        _sut.TryAddPlayer(code, 2, "Guest", out _);
+
+        // Act & Assert 1: Mark player offline
+        _sut.MarkPlayerOffline(code, 2);
+        var session = _sut.TryGetSession(code);
+        session!.OfflinePlayers.Should().Contain(2);
+
+        var snapshotOffline = _sut.GetLobbySnapshot(code);
+        snapshotOffline.Should().NotBeNull();
+        var guestPlayerOffline = snapshotOffline!.Players.First(p => p.UserId == 2);
+        guestPlayerOffline.IsOnline.Should().BeFalse();
+
+        // Act & Assert 2: Mark player online
+        _sut.MarkPlayerOnline(code, 2);
+        session.OfflinePlayers.Should().NotContain(2);
+
+        var snapshotOnline = _sut.GetLobbySnapshot(code);
+        var guestPlayerOnline = snapshotOnline!.Players.First(p => p.UserId == 2);
+        guestPlayerOnline.IsOnline.Should().BeTrue();
+    }
 }
 

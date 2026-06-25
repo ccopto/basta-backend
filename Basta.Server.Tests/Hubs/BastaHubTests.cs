@@ -404,6 +404,61 @@ public class BastaHubTests
         // Verify that GetLobbySnapshot was never called
         _mockSessionService.Verify(s => s.GetLobbySnapshot(code), Times.Never);
     }
+
+    [Fact]
+    public async Task OnDisconnectedAsync_CurrentRoundGreaterThanZero_MarksPlayerOfflineAndBroadcasts()
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 42;
+        var session = new GameSession { Code = code, CurrentRound = 1 };
+        var snapshot = new LobbySnapshot { GameCode = code };
+
+        _mockContext.Setup(c => c.Items).Returns(new Dictionary<object, object?>
+        {
+            { "GameCode", code },
+            { "UserId", userId }
+        });
+        _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
+        _mockSessionService.Setup(s => s.GetLobbySnapshot(code)).Returns(snapshot);
+
+        // Act
+        await _sut.OnDisconnectedAsync(null);
+
+        // Assert
+        _mockSessionService.Verify(s => s.MarkPlayerOffline(code, userId), Times.Once);
+        _mockSessionService.Verify(s => s.RemovePlayer(code, userId), Times.Never);
+        _mockClients.Verify(c => c.Group(code), Times.Once);
+        _mockClientProxy.Verify(p => p.SendCoreAsync("ReceiveLobbyUpdate", It.Is<object?[]>(o => (LobbySnapshot)o[0]! == snapshot), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task OnDisconnectedAsync_CurrentRoundZero_MarksPlayerOfflineAndDoesNotRemovePlayerImmediately()
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 42;
+        var session = new GameSession { Code = code, CurrentRound = 0 };
+        var snapshot = new LobbySnapshot { GameCode = code };
+
+        _mockContext.Setup(c => c.Items).Returns(new Dictionary<object, object?>
+        {
+            { "GameCode", code },
+            { "UserId", userId }
+        });
+        _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
+        _mockSessionService.Setup(s => s.GetLobbySnapshot(code)).Returns(snapshot);
+
+        // Act
+        await _sut.OnDisconnectedAsync(null);
+
+        // Assert
+        _mockSessionService.Verify(s => s.MarkPlayerOffline(code, userId), Times.Once);
+        // Verify it was not removed synchronously
+        _mockSessionService.Verify(s => s.RemovePlayer(code, userId), Times.Never);
+        _mockClients.Verify(c => c.Group(code), Times.Once);
+        _mockClientProxy.Verify(p => p.SendCoreAsync("ReceiveLobbyUpdate", It.Is<object?[]>(o => (LobbySnapshot)o[0]! == snapshot), default), Times.Once);
+    }
 }
 
 

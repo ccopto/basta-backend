@@ -32,5 +32,7 @@ public class GameSession
 
     // Tracks which players have submitted their self-validation for the current round
     public HashSet<int> PlayersValidated { get; set; } = new();
+
+    public HashSet<int> OfflinePlayers { get; set; } = new();
 }
 

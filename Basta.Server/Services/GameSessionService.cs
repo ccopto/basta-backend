@@ -207,7 +207,7 @@ public class GameSessionService : IGameSessionService
                 Nickname = kvp.Value,
                 Score = 0, // For now, score is 0 in the lobby
                 IsHost = kvp.Key == session.HostUserId,
-                IsOnline = true
+                IsOnline = !session.OfflinePlayers.Contains(kvp.Key)
             }).ToList();
 
             return new LobbySnapshot
@@ -300,6 +300,28 @@ public class GameSessionService : IGameSessionService
             if (session.PlayersValidated.Contains(userId)) return false;
             session.PlayersValidated.Add(userId);
             return session.PlayersValidated.Count == session.Players.Count;
+        }
+    }
+
+    public void MarkPlayerOffline(string code, int userId)
+    {
+        if (_sessions.TryGetValue(code, out var session))
+        {
+            lock (session)
+            {
+                session.OfflinePlayers.Add(userId);
+            }
+        }
+    }
+
+    public void MarkPlayerOnline(string code, int userId)
+    {
+        if (_sessions.TryGetValue(code, out var session))
+        {
+            lock (session)
+            {
+                session.OfflinePlayers.Remove(userId);
+            }
         }
     }
 

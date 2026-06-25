@@ -70,6 +70,9 @@ public interface IGameSessionService
     /// </summary>
     /// <returns>True if ALL currently connected players have validated.</returns>
     bool SubmitValidation(string code, int userId);
+
+    void MarkPlayerOffline(string code, int userId);
+    void MarkPlayerOnline(string code, int userId);
 }
 
 

@@ -45,6 +45,8 @@ public class BastaHub : Hub
         Context.Items["UserId"] = userId;
         Context.Items["GameCode"] = code;
 
+        _gameSessionService.MarkPlayerOnline(code, userId);
+
         // Defensively ensure the player is in the in-memory session.
         // This is idempotent — if the REST /join already registered them,
         // TryAddPlayer is a no-op (returns false with "already registered").
@@ -287,15 +289,34 @@ public class BastaHub : Hub
         if (Context.Items.TryGetValue("GameCode", out var codeObj) && codeObj is string code &&
             Context.Items.TryGetValue("UserId", out var userIdObj) && userIdObj is int userId)
         {
-            // Remove the user from the in-memory session tracking
-            _gameSessionService.RemovePlayer(code, userId);
-
-            // Fetch the updated snapshot to broadcast to the remaining players
-            var snapshot = _gameSessionService.GetLobbySnapshot(code);
-            
-            if (snapshot != null)
+            var session = _gameSessionService.TryGetSession(code);
+            if (session != null)
             {
-                await Clients.Group(code).SendAsync("ReceiveLobbyUpdate", snapshot);
+                _gameSessionService.MarkPlayerOffline(code, userId);
+
+                if (session.CurrentRound == 0)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(15));
+                        var currentSession = _gameSessionService.TryGetSession(code);
+                        if (currentSession != null && currentSession.OfflinePlayers.Contains(userId))
+                        {
+                            _gameSessionService.RemovePlayer(code, userId);
+                            var snapshot = _gameSessionService.GetLobbySnapshot(code);
+                            if (snapshot != null)
+                            {
+                                await _hubContext.Clients.Group(code).SendAsync("ReceiveLobbyUpdate", snapshot);
+                            }
+                        }
+                    });
+                }
+
+                var snapshot = _gameSessionService.GetLobbySnapshot(code);
+                if (snapshot != null)
+                {
+                    await Clients.Group(code).SendAsync("ReceiveLobbyUpdate", snapshot);
+                }
             }
         }
         
