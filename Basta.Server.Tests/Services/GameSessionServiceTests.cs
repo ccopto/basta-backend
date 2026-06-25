@@ -480,5 +480,105 @@ public class GameSessionServiceTests
         // 3. Try to remove nonexistent player/session
         _sut.TryRemoveIfStillOffline("NONE", 2).Should().BeFalse();
     }
+
+    [Fact]
+    public void CheckAllAnswersSubmitted_SubtractsOfflinePlayers()
+    {
+        // Arrange
+        var code = _sut.CreateSession(1, "Host", 5, 60, new List<int> { 1 });
+        _sut.TryAddPlayer(code, 2, "Player2", out _);
+        _sut.TryAddPlayer(code, 3, "Player3", out _); // Total 3 players: 1, 2, 3
+
+        _sut.StartNextRound(code);
+
+        // Submit answers for 1 and 2
+        _sut.TrySubmitAnswers(code, 1, new Dictionary<int, string> { { 1, "A" } });
+        _sut.TrySubmitAnswers(code, 2, new Dictionary<int, string> { { 1, "B" } });
+
+        // Quorum not met yet (2/3 answers)
+        _sut.CheckAllAnswersSubmitted(code).Should().BeFalse();
+
+        // Act: Player 3 goes offline
+        _sut.MarkPlayerOffline(code, 3);
+
+        // Assert: Quorum should now be met (2/2 active players)
+        _sut.CheckAllAnswersSubmitted(code).Should().BeTrue();
+    }
+
+    [Fact]
+    public void SubmitValidation_SubtractsOfflinePlayers()
+    {
+        // Arrange
+        var code = _sut.CreateSession(1, "Host", 5, 60, new List<int> { 1 });
+        _sut.TryAddPlayer(code, 2, "Player2", out _);
+        _sut.TryAddPlayer(code, 3, "Player3", out _); // Total 3 players: 1, 2, 3
+
+        _sut.StartNextRound(code);
+        _sut.LockRound(code);
+
+        // Player 1 and Player 2 validate
+        _sut.SubmitValidation(code, 1).Should().BeFalse();
+        
+        // Before Player 2 validates, Player 3 goes offline
+        _sut.MarkPlayerOffline(code, 3);
+
+        // Player 2 validates - this should trigger the true validation quorum (2/2 active players)
+        _sut.SubmitValidation(code, 2).Should().BeTrue();
+    }
+
+    [Fact]
+    public void MarkPlayerOfflineAndCheckQuorum_TipsQuorumCorrectly()
+    {
+        // Arrange
+        var code = _sut.CreateSession(1, "Host", 5, 60, new List<int> { 1 });
+        _sut.TryAddPlayer(code, 2, "Player2", out _);
+        _sut.TryAddPlayer(code, 3, "Player3", out _); // Total 3 players
+
+        _sut.StartNextRound(code);
+
+        // 1. Check answers quorum tipping
+        _sut.TrySubmitAnswers(code, 1, new Dictionary<int, string> { { 1, "A" } });
+        _sut.TrySubmitAnswers(code, 2, new Dictionary<int, string> { { 1, "B" } });
+
+        // Mark player 3 offline. Since 2 out of 2 active players submitted, this should tip answers quorum.
+        var (answersTipped, validationTipped) = _sut.MarkPlayerOfflineAndCheckQuorum(code, 3);
+        answersTipped.Should().BeTrue();
+        validationTipped.Should().BeFalse();
+
+        // 2. Check validation quorum tipping
+        _sut.LockRound(code);
+        _sut.SubmitValidation(code, 1);
+
+        // Bring Player 3 back online so active players is 3 again
+        _sut.MarkPlayerOnline(code, 3);
+
+        // Mark Player 2 offline. Active is now 2 (Host 1, Guest 3). Only Host 1 has validated (1/2).
+        var (ansTipped2, valTipped2) = _sut.MarkPlayerOfflineAndCheckQuorum(code, 2);
+        ansTipped2.Should().BeFalse(); // Already met answers quorum
+        valTipped2.Should().BeFalse(); // Validation quorum not met yet (1/2)
+
+        // Mark Player 3 offline. Active is now 1 (Host 1). Host 1 validated (1/1). Quorum tipped!
+        var (ansTipped3, valTipped3) = _sut.MarkPlayerOfflineAndCheckQuorum(code, 3);
+        ansTipped3.Should().BeFalse();
+        valTipped3.Should().BeTrue();
+    }
+
+    [Fact]
+    public void MarkPlayerOfflineAndCheckQuorum_RoundZero_ReturnsFalse()
+    {
+        // Arrange
+        var code = _sut.CreateSession(1, "Host", 5, 60, new List<int> { 1 });
+        _sut.TryAddPlayer(code, 2, "Player2", out _);
+
+        // Act: Player 2 goes offline at round 0
+        var (answersTipped, validationTipped) = _sut.MarkPlayerOfflineAndCheckQuorum(code, 2);
+
+        // Assert: Quorum shouldn't be checked or tipped at round 0
+        answersTipped.Should().BeFalse();
+        validationTipped.Should().BeFalse();
+
+        var session = _sut.TryGetSession(code);
+        session!.OfflinePlayers.Should().Contain(2);
+    }
 }
 

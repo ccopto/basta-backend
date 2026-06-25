@@ -297,7 +297,8 @@ public class GameSessionService : IGameSessionService
         if (!_sessions.TryGetValue(code, out var session)) return false;
         lock (session)
         {
-            return session.CurrentRoundAnswers.Count >= session.Players.Count;
+            var activePlayerCount = Math.Max(0, session.Players.Count - session.OfflinePlayers.Count);
+            return session.CurrentRoundAnswers.Count >= activePlayerCount;
         }
     }
 
@@ -334,7 +335,8 @@ public class GameSessionService : IGameSessionService
         {
             if (session.PlayersValidated.Contains(userId)) return false;
             session.PlayersValidated.Add(userId);
-            return session.PlayersValidated.Count == session.Players.Count;
+            var activePlayerCount = Math.Max(0, session.Players.Count - session.OfflinePlayers.Count);
+            return session.PlayersValidated.Count >= activePlayerCount;
         }
     }
 
@@ -357,6 +359,40 @@ public class GameSessionService : IGameSessionService
             {
                 session.OfflinePlayers.Remove(userId);
             }
+        }
+    }
+
+    public (bool answersQuorumMet, bool validationQuorumMet) MarkPlayerOfflineAndCheckQuorum(string code, int userId)
+    {
+        if (!_sessions.TryGetValue(code, out var session)) return (false, false);
+        lock (session)
+        {
+            if (session.CurrentRound == 0)
+            {
+                session.OfflinePlayers.Add(userId);
+                return (false, false);
+            }
+
+            bool alreadyOffline = session.OfflinePlayers.Contains(userId);
+
+            int beforeOfflineCount = session.OfflinePlayers.Count;
+            int beforeActivePlayers = Math.Max(0, session.Players.Count - beforeOfflineCount);
+
+            bool wasAnswersMet = session.CurrentRoundAnswers.Count >= beforeActivePlayers;
+            bool wasValidationMet = session.PlayersValidated.Count >= beforeActivePlayers;
+
+            session.OfflinePlayers.Add(userId);
+
+            int afterOfflineCount = session.OfflinePlayers.Count;
+            int afterActivePlayers = Math.Max(0, session.Players.Count - afterOfflineCount);
+
+            bool isAnswersMet = session.CurrentRoundAnswers.Count >= afterActivePlayers;
+            bool isValidationMet = session.PlayersValidated.Count >= afterActivePlayers;
+
+            bool answersQuorumTipped = session.PlayersValidated.Count == 0 && !alreadyOffline && !wasAnswersMet && isAnswersMet;
+            bool validationQuorumTipped = !alreadyOffline && !wasValidationMet && isValidationMet;
+
+            return (answersQuorumTipped, validationQuorumTipped);
         }
     }
 

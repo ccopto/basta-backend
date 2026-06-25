@@ -78,6 +78,7 @@ public interface IGameSessionService
 
     void ValidateSessionSettings(int totalRounds, int timerDuration, List<int> categoryIds);
     bool TryRemoveIfStillOffline(string code, int userId);
+    (bool answersQuorumMet, bool validationQuorumMet) MarkPlayerOfflineAndCheckQuorum(string code, int userId);
 }
 
 

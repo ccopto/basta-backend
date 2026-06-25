@@ -317,7 +317,23 @@ public class BastaHub : Hub
             var session = _gameSessionService.TryGetSession(code);
             if (session != null)
             {
-                _gameSessionService.MarkPlayerOffline(code, userId);
+                var (answersTipped, validationTipped) = _gameSessionService.MarkPlayerOfflineAndCheckQuorum(code, userId);
+
+                if (answersTipped)
+                {
+                    var scoringData = await _gameOperationService.GetRoundAnswersDtoAsync(
+                        code, session.CurrentRound);
+                    await Clients.Group(code).SendAsync("DisplayScoring", scoringData);
+                }
+                else if (validationTipped)
+                {
+                    var finalScores = await _scoringService.CalculateAndAwardPointsAsync(
+                        code, 
+                        session.CurrentRound, 
+                        session.CurrentLetter ?? ' ');
+
+                    await Clients.Group(code).SendAsync("ReceiveGameScore", finalScores);
+                }
 
                 if (session.CurrentRound == 0)
                 {

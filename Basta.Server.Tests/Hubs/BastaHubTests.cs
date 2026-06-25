@@ -424,12 +424,13 @@ public class BastaHubTests
         });
         _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
         _mockSessionService.Setup(s => s.GetLobbySnapshot(code)).Returns(snapshot);
+        _mockSessionService.Setup(s => s.MarkPlayerOfflineAndCheckQuorum(code, userId)).Returns((false, false));
 
         // Act
         await _sut.OnDisconnectedAsync(null);
 
         // Assert
-        _mockSessionService.Verify(s => s.MarkPlayerOffline(code, userId), Times.Once);
+        _mockSessionService.Verify(s => s.MarkPlayerOfflineAndCheckQuorum(code, userId), Times.Once);
         _mockSessionService.Verify(s => s.RemovePlayer(code, userId), Times.Never);
         _mockClients.Verify(c => c.Group(code), Times.Once);
         _mockClientProxy.Verify(p => p.SendCoreAsync("ReceiveLobbyUpdate", It.Is<object?[]>(o => (LobbySnapshot)o[0]! == snapshot), default), Times.Once);
@@ -451,12 +452,13 @@ public class BastaHubTests
         });
         _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
         _mockSessionService.Setup(s => s.GetLobbySnapshot(code)).Returns(snapshot);
+        _mockSessionService.Setup(s => s.MarkPlayerOfflineAndCheckQuorum(code, userId)).Returns((false, false));
 
         // Act
         await _sut.OnDisconnectedAsync(null);
 
         // Assert
-        _mockSessionService.Verify(s => s.MarkPlayerOffline(code, userId), Times.Once);
+        _mockSessionService.Verify(s => s.MarkPlayerOfflineAndCheckQuorum(code, userId), Times.Once);
         // Verify it was not removed synchronously
         _mockSessionService.Verify(s => s.RemovePlayer(code, userId), Times.Never);
         _mockClients.Verify(c => c.Group(code), Times.Once);
@@ -603,6 +605,68 @@ public class BastaHubTests
         _mockOperationService.Verify(o => o.UpdateGameSettingsAsync(code, 5, 60, "en", It.IsAny<CancellationToken>()), Times.Once);
         _mockSessionService.Verify(s => s.UpdateSessionSettings(code, 5, 60, categoryIds, "en"), Times.Once);
         _mockClientProxy.Verify(c => c.SendCoreAsync("ReceiveLobbyUpdate", It.Is<object?[]>(o => (LobbySnapshot)o[0]! == snapshot), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task OnDisconnectedAsync_AnswersQuorumTipped_BroadcastsDisplayScoring()
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 42;
+        var session = new GameSession { Code = code, CurrentRound = 1 };
+        var scoringData = new RoundAnswersDto(new List<PlayerAnswersDto>());
+
+        _mockContext.Setup(c => c.Items).Returns(new Dictionary<object, object?>
+        {
+            { "GameCode", code },
+            { "UserId", userId }
+        });
+        _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
+        _mockSessionService
+            .Setup(s => s.MarkPlayerOfflineAndCheckQuorum(code, userId))
+            .Returns((true, false)); // Answers tipped!
+        _mockOperationService
+            .Setup(o => o.GetRoundAnswersDtoAsync(code, 1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(scoringData);
+
+        // Act
+        await _sut.OnDisconnectedAsync(null);
+
+        // Assert
+        _mockSessionService.Verify(s => s.MarkPlayerOfflineAndCheckQuorum(code, userId), Times.Once);
+        _mockOperationService.Verify(o => o.GetRoundAnswersDtoAsync(code, 1, It.IsAny<CancellationToken>()), Times.Once);
+        _mockClientProxy.Verify(c => c.SendCoreAsync("DisplayScoring", It.Is<object?[]>(o => (RoundAnswersDto)o[0]! == scoringData), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task OnDisconnectedAsync_ValidationQuorumTipped_CalculatesAndBroadcastsReceiveGameScore()
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 42;
+        var session = new GameSession { Code = code, CurrentRound = 1, CurrentLetter = 'B' };
+        var finalScores = new List<PlayerScoreDto>();
+
+        _mockContext.Setup(c => c.Items).Returns(new Dictionary<object, object?>
+        {
+            { "GameCode", code },
+            { "UserId", userId }
+        });
+        _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
+        _mockSessionService
+            .Setup(s => s.MarkPlayerOfflineAndCheckQuorum(code, userId))
+            .Returns((false, true)); // Validation tipped!
+        _mockScoringService
+            .Setup(s => s.CalculateAndAwardPointsAsync(code, 1, 'B'))
+            .ReturnsAsync(finalScores);
+
+        // Act
+        await _sut.OnDisconnectedAsync(null);
+
+        // Assert
+        _mockSessionService.Verify(s => s.MarkPlayerOfflineAndCheckQuorum(code, userId), Times.Once);
+        _mockScoringService.Verify(s => s.CalculateAndAwardPointsAsync(code, 1, 'B'), Times.Once);
+        _mockClientProxy.Verify(c => c.SendCoreAsync("ReceiveGameScore", It.Is<object?[]>(o => (List<PlayerScoreDto>)o[0]! == finalScores), default), Times.Once);
     }
 }
 
