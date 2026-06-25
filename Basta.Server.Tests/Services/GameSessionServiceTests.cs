@@ -417,5 +417,46 @@ public class GameSessionServiceTests
         _timeProvider.Advance(TimeSpan.FromSeconds(4));
         _sut.IsRoundAcceptingAnswers(code).Should().BeFalse();
     }
+
+    [Fact]
+    public void ValidateSessionSettings_ValidSettings_NoException()
+    {
+        // Act & Assert
+        Action act = () => _sut.ValidateSessionSettings(5, 60, new List<int> { 1 });
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void ValidateSessionSettings_InvalidCategories_ThrowsArgumentException()
+    {
+        // Act & Assert
+        Action actEmpty = () => _sut.ValidateSessionSettings(5, 60, new List<int>());
+        actEmpty.Should().Throw<ArgumentException>().WithMessage("At least one category must be selected.*");
+
+        Action actNull = () => _sut.ValidateSessionSettings(5, 60, null!);
+        actNull.Should().Throw<ArgumentException>().WithMessage("At least one category must be selected.*");
+    }
+
+    [Fact]
+    public void ValidateSessionSettings_InvalidRounds_ThrowsArgumentOutOfRangeException()
+    {
+        // Act & Assert
+        Action actLow = () => _sut.ValidateSessionSettings(0, 60, new List<int> { 1 });
+        actLow.Should().Throw<ArgumentOutOfRangeException>().WithMessage("Total rounds must be between 1 and 20.*");
+
+        Action actHigh = () => _sut.ValidateSessionSettings(21, 60, new List<int> { 1 });
+        actHigh.Should().Throw<ArgumentOutOfRangeException>().WithMessage("Total rounds must be between 1 and 20.*");
+    }
+
+    [Fact]
+    public void ValidateSessionSettings_InvalidTimer_ThrowsArgumentOutOfRangeException()
+    {
+        // Act & Assert
+        Action actLow = () => _sut.ValidateSessionSettings(5, 29, new List<int> { 1 });
+        actLow.Should().Throw<ArgumentOutOfRangeException>().WithMessage("Timer duration must be between 30 and 120 seconds.*");
+
+        Action actHigh = () => _sut.ValidateSessionSettings(5, 121, new List<int> { 1 });
+        actHigh.Should().Throw<ArgumentOutOfRangeException>().WithMessage("Timer duration must be between 30 and 120 seconds.*");
+    }
 }
 

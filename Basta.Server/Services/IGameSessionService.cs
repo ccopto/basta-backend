@@ -75,6 +75,8 @@ public interface IGameSessionService
 
     void MarkPlayerOffline(string code, int userId);
     void MarkPlayerOnline(string code, int userId);
+
+    void ValidateSessionSettings(int totalRounds, int timerDuration, List<int> categoryIds);
 }
 
 

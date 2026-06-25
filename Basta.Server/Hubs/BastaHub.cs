@@ -251,8 +251,14 @@ public class BastaHub : Hub
                 {
                     try
                     {
-                        _gameSessionService.UpdateSessionSettings(code, totalRounds, timerDuration, categoryIds, language);
+                        // 1. Validate inputs
+                        _gameSessionService.ValidateSessionSettings(totalRounds, timerDuration, categoryIds);
+
+                        // 2. Persist in database
                         await _gameOperationService.UpdateGameSettingsAsync(code, totalRounds, timerDuration, language);
+
+                        // 3. Update memory state on success
+                        _gameSessionService.UpdateSessionSettings(code, totalRounds, timerDuration, categoryIds, language);
 
                         var snapshot = _gameSessionService.GetLobbySnapshot(code);
                         if (snapshot != null)

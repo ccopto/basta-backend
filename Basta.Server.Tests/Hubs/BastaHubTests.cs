@@ -520,6 +520,90 @@ public class BastaHubTests
         await Assert.ThrowsAsync<HubException>(() => _sut.SubmitAnswers(answers));
         _mockOperationService.Verify(o => o.HasSubmittedAsync(code, currentRound, userId, It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [Fact]
+    public async Task UpdateGameSettings_ValidationThrows_DoesNotCallDbOrUpdateSession()
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 1;
+        var session = new GameSession { HostUserId = userId };
+        var categoryIds = new List<int>(); // Empty categories, should trigger validation failure
+
+        _mockContext.Setup(c => c.Items).Returns(new Dictionary<object, object?>
+        {
+            { "GameCode", code },
+            { "UserId", userId }
+        });
+        _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
+        _mockSessionService
+            .Setup(s => s.ValidateSessionSettings(5, 60, categoryIds))
+            .Throws(new ArgumentException("At least one category must be selected."));
+
+        // Act
+        await _sut.UpdateGameSettings(5, 60, categoryIds, "en");
+
+        // Assert
+        _mockSessionService.Verify(s => s.ValidateSessionSettings(5, 60, categoryIds), Times.Once);
+        _mockOperationService.Verify(o => o.UpdateGameSettingsAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockSessionService.Verify(s => s.UpdateSessionSettings(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<List<int>>(), It.IsAny<string>()), Times.Never);
+        _mockSingleClientProxy.Verify(c => c.SendCoreAsync("Error", It.Is<object?[]>(o => o[0]!.ToString() == "At least one category must be selected."), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateGameSettings_DbThrows_DoesNotUpdateSessionSettings()
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 1;
+        var session = new GameSession { HostUserId = userId };
+        var categoryIds = new List<int> { 1 };
+
+        _mockContext.Setup(c => c.Items).Returns(new Dictionary<object, object?>
+        {
+            { "GameCode", code },
+            { "UserId", userId }
+        });
+        _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
+        _mockOperationService
+            .Setup(o => o.UpdateGameSettingsAsync(code, 5, 60, "en", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new System.Exception("Database connection error"));
+
+        // Act & Assert
+        await Assert.ThrowsAsync<System.Exception>(() => _sut.UpdateGameSettings(5, 60, categoryIds, "en"));
+
+        _mockSessionService.Verify(s => s.ValidateSessionSettings(5, 60, categoryIds), Times.Once);
+        _mockOperationService.Verify(o => o.UpdateGameSettingsAsync(code, 5, 60, "en", It.IsAny<CancellationToken>()), Times.Once);
+        _mockSessionService.Verify(s => s.UpdateSessionSettings(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<List<int>>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateGameSettings_Succeeds_UpdatesBoth()
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 1;
+        var session = new GameSession { HostUserId = userId };
+        var categoryIds = new List<int> { 1 };
+        var snapshot = new LobbySnapshot { GameCode = code };
+
+        _mockContext.Setup(c => c.Items).Returns(new Dictionary<object, object?>
+        {
+            { "GameCode", code },
+            { "UserId", userId }
+        });
+        _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
+        _mockSessionService.Setup(s => s.GetLobbySnapshot(code)).Returns(snapshot);
+
+        // Act
+        await _sut.UpdateGameSettings(5, 60, categoryIds, "en");
+
+        // Assert
+        _mockSessionService.Verify(s => s.ValidateSessionSettings(5, 60, categoryIds), Times.Once);
+        _mockOperationService.Verify(o => o.UpdateGameSettingsAsync(code, 5, 60, "en", It.IsAny<CancellationToken>()), Times.Once);
+        _mockSessionService.Verify(s => s.UpdateSessionSettings(code, 5, 60, categoryIds, "en"), Times.Once);
+        _mockClientProxy.Verify(c => c.SendCoreAsync("ReceiveLobbyUpdate", It.Is<object?[]>(o => (LobbySnapshot)o[0]! == snapshot), default), Times.Once);
+    }
 }
 
 

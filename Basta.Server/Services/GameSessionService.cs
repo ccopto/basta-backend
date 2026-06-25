@@ -258,7 +258,7 @@ public class GameSessionService : IGameSessionService
     public const int MinTimer = 30;
     public const int MaxTimer = 120;
 
-    public void UpdateSessionSettings(string code, int totalRounds, int timerDuration, List<int> categoryIds, string language)
+    public void ValidateSessionSettings(int totalRounds, int timerDuration, List<int> categoryIds)
     {
         if (categoryIds == null || !categoryIds.Any())
         {
@@ -274,6 +274,11 @@ public class GameSessionService : IGameSessionService
         {
             throw new ArgumentOutOfRangeException(nameof(timerDuration), $"Timer duration must be between {MinTimer} and {MaxTimer} seconds.");
         }
+    }
+
+    public void UpdateSessionSettings(string code, int totalRounds, int timerDuration, List<int> categoryIds, string language)
+    {
+        ValidateSessionSettings(totalRounds, timerDuration, categoryIds);
 
         if (_sessions.TryGetValue(code, out var session))
         {
