@@ -53,6 +53,8 @@ public class BastaHubTests
         // Default mock behavior for Clients.Group(code)
         _mockClients.Setup(c => c.Group(It.IsAny<string>())).Returns(_mockClientProxy.Object);
         _mockClients.Setup(c => c.Caller).Returns(_mockSingleClientProxy.Object);
+        _mockOperationService.Setup(o => o.ValidatePlayerAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
     }
 
     [Fact]
@@ -373,6 +375,34 @@ public class BastaHubTests
         _mockOperationService.Verify(o => o.UpdateValidationAsync(code, 1, userId, validations, It.IsAny<CancellationToken>()), Times.Once);
         _mockScoringService.Verify(s => s.CalculateAndAwardPointsAsync(code, 1, 'A'), Times.Once);
         _mockClientProxy.Verify(c => c.SendCoreAsync("ReceiveGameScore", It.Is<object?[]>(o => (List<PlayerScoreDto>)o[0]! == scores), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task JoinGame_ThrowsHubException_AndDoesNotJoinGroup_WhenPlayerIsNotRegistered()
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 99;
+        var nickname = "Intruder";
+        var connectionId = "conn-999";
+
+        _mockContext.Setup(c => c.ConnectionId).Returns(connectionId);
+        _mockContext.Setup(c => c.Items).Returns(new Dictionary<object, object?>());
+        _mockOperationService
+            .Setup(o => o.ValidatePlayerAsync(code, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        var mockGroups = new Mock<IGroupManager>();
+        _sut.Groups = mockGroups.Object;
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<HubException>(() => _sut.JoinGame(code, userId, nickname));
+        Assert.Equal("Player is not registered for this game session.", ex.Message);
+
+        // Verify that Groups.AddToGroupAsync was never called
+        mockGroups.Verify(g => g.AddToGroupAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        // Verify that GetLobbySnapshot was never called
+        _mockSessionService.Verify(s => s.GetLobbySnapshot(code), Times.Never);
     }
 }
 

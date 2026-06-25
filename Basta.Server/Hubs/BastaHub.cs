@@ -29,8 +29,16 @@ public class BastaHub : Hub
 
     public async Task JoinGame(string code, int userId, string nickname)
     {
-        // 1. Add connection to the SignalR group for the specific game code.
         code = code.ToUpperInvariant();
+        
+        var isValid = await _gameOperationService.ValidatePlayerAsync(code, userId);
+        if (!isValid)
+        {
+            _logger.LogWarning("Player {UserId} ({Nickname}) is not registered for game {Code}.", userId, nickname, code);
+            throw new HubException("Player is not registered for this game session.");
+        }
+
+        // 1. Add connection to the SignalR group for the specific game code.
         await Groups.AddToGroupAsync(Context.ConnectionId, code);
 
         // 2. Track userId mapped to this connection for disconnection handling later

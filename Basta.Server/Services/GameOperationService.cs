@@ -262,4 +262,9 @@ public class GameOperationService : IGameOperationService
 
         return new RoundAnswersDto(playerDtos);
     }
+
+    public async Task<bool> ValidatePlayerAsync(string code, int userId, CancellationToken cancellationToken = default)
+    {
+        return await _context.GamePlayers.AnyAsync(gp => gp.GameId == code && gp.UserId == userId, cancellationToken);
+    }
 }
