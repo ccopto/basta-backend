@@ -227,7 +227,7 @@ public class BastaHub : Hub
     /// Updates the game session settings (rounds, timer, categories) for the current lobby.
     /// Only the host can perform this action.
     /// </summary>
-    public async Task UpdateGameSettings(int totalRounds, int timerDuration, List<int> categoryIds)
+    public async Task UpdateGameSettings(int totalRounds, int timerDuration, List<int> categoryIds, string language)
     {
         if (Context.Items.TryGetValue("GameCode", out var codeObj) && codeObj is string code &&
             Context.Items.TryGetValue("UserId", out var userIdObj) && userIdObj is int userId)
@@ -239,7 +239,14 @@ public class BastaHub : Hub
                 {
                     try
                     {
-                        _gameSessionService.UpdateSessionSettings(code, totalRounds, timerDuration, categoryIds);
+                        _gameSessionService.UpdateSessionSettings(code, totalRounds, timerDuration, categoryIds, language);
+                        await _gameOperationService.UpdateGameSettingsAsync(code, totalRounds, timerDuration, language);
+
+                        var snapshot = _gameSessionService.GetLobbySnapshot(code);
+                        if (snapshot != null)
+                        {
+                            await Clients.Group(code).SendAsync("ReceiveLobbyUpdate", snapshot);
+                        }
                     }
                     catch (ArgumentException ex)
                     {

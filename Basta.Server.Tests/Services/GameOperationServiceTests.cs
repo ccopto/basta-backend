@@ -217,6 +217,29 @@ public class GameOperationServiceTests : IDisposable
         bananaAnswer.IsValid.Should().BeNull(); // awaiting peer vote
     }
 
+    [Fact]
+    public async Task UpdateGameSettingsAsync_UpdatesDatabaseFields()
+    {
+        // Arrange
+        var createResult = await _sut.CreateGameAsync(
+            nickname: "Host",
+            preferredLanguage: "en",
+            language: "en",
+            totalRounds: 5,
+            timerDuration: 60,
+            categoryIds: new List<int> { 1 });
+
+        // Act
+        await _sut.UpdateGameSettingsAsync(createResult.GameCode, 8, 45, "es");
+
+        // Assert
+        var game = await _context.Games.AsNoTracking().FirstOrDefaultAsync(g => g.GameId == createResult.GameCode);
+        game.Should().NotBeNull();
+        game!.TotalRounds.Should().Be(8);
+        game.TimerDuration.Should().Be(45);
+        game.Language.Should().Be("es");
+    }
+
     public void Dispose()
     {
         _context.Dispose();

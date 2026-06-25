@@ -337,9 +337,10 @@ public class GameSessionServiceTests
         var newRounds = 10;
         var newTimer = 30;
         var newCategories = new List<int> { 2, 3 };
+        var newLanguage = "es";
 
         // Act
-        _sut.UpdateSessionSettings(code, newRounds, newTimer, newCategories);
+        _sut.UpdateSessionSettings(code, newRounds, newTimer, newCategories, newLanguage);
 
         // Assert
         var session = _sut.TryGetSession(code);
@@ -347,6 +348,7 @@ public class GameSessionServiceTests
         session!.TotalRounds.Should().Be(newRounds);
         session.TimerDuration.Should().Be(newTimer);
         session.SelectedCategoryIds.Should().BeEquivalentTo(newCategories);
+        session.Language.Should().Be(newLanguage);
     }
 
     [Fact]

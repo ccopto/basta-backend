@@ -52,7 +52,7 @@ public interface IGameSessionService
     /// <summary>
     /// Updates the game session settings (rounds, timer, categories).
     /// </summary>
-    void UpdateSessionSettings(string code, int totalRounds, int timerDuration, List<int> categoryIds);
+    void UpdateSessionSettings(string code, int totalRounds, int timerDuration, List<int> categoryIds, string language);
 
     /// <summary>
     /// Checks if all currently connected players have submitted their answers for the round.

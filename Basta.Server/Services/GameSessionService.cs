@@ -229,7 +229,7 @@ public class GameSessionService : IGameSessionService
     public const int MinTimer = 30;
     public const int MaxTimer = 120;
 
-    public void UpdateSessionSettings(string code, int totalRounds, int timerDuration, List<int> categoryIds)
+    public void UpdateSessionSettings(string code, int totalRounds, int timerDuration, List<int> categoryIds, string language)
     {
         if (categoryIds == null || !categoryIds.Any())
         {
@@ -253,6 +253,7 @@ public class GameSessionService : IGameSessionService
                 session.TotalRounds = totalRounds;
                 session.TimerDuration = timerDuration;
                 session.SelectedCategoryIds = categoryIds;
+                session.Language = string.Equals(language, "es", StringComparison.OrdinalIgnoreCase) ? "es" : "en";
             }
         }
     }

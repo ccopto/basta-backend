@@ -50,6 +50,8 @@ public interface IGameOperationService
         CancellationToken cancellationToken = default);
 
     Task<bool> ValidatePlayerAsync(string code, int userId, CancellationToken cancellationToken = default);
+
+    Task UpdateGameSettingsAsync(string code, int totalRounds, int timerDuration, string language, CancellationToken cancellationToken = default);
 }
 
 
