@@ -324,10 +324,8 @@ public class BastaHub : Hub
                     _ = Task.Run(async () =>
                     {
                         await Task.Delay(TimeSpan.FromSeconds(15));
-                        var currentSession = _gameSessionService.TryGetSession(code);
-                        if (currentSession != null && currentSession.OfflinePlayers.Contains(userId))
+                        if (_gameSessionService.TryRemoveIfStillOffline(code, userId))
                         {
-                            _gameSessionService.RemovePlayer(code, userId);
                             var snapshot = _gameSessionService.GetLobbySnapshot(code);
                             if (snapshot != null)
                             {

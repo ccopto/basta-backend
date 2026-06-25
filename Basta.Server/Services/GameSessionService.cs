@@ -360,6 +360,21 @@ public class GameSessionService : IGameSessionService
         }
     }
 
+    public bool TryRemoveIfStillOffline(string code, int userId)
+    {
+        if (!_sessions.TryGetValue(code, out var session)) return false;
+        lock (session)
+        {
+            if (session.OfflinePlayers.Contains(userId))
+            {
+                session.OfflinePlayers.Remove(userId);
+                session.Players.Remove(userId);
+                return true;
+            }
+            return false;
+        }
+    }
+
     private static string GenerateCode()
     {
         // Excludes visually ambiguous characters: I, O, Q, V, Z

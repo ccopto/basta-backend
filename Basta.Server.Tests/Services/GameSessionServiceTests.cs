@@ -458,5 +458,27 @@ public class GameSessionServiceTests
         Action actHigh = () => _sut.ValidateSessionSettings(5, 121, new List<int> { 1 });
         actHigh.Should().Throw<ArgumentOutOfRangeException>().WithMessage("Timer duration must be between 30 and 120 seconds.*");
     }
+
+    [Fact]
+    public void TryRemoveIfStillOffline_RemovesCorrectly()
+    {
+        // Arrange
+        var code = _sut.CreateSession(1, "Host", 5, 60, new List<int> { 1 });
+        _sut.TryAddPlayer(code, 2, "Player2", out _);
+        
+        // 1. Try to remove when player is online
+        _sut.TryRemoveIfStillOffline(code, 2).Should().BeFalse();
+        var session = _sut.TryGetSession(code);
+        session!.Players.Should().ContainKey(2);
+
+        // 2. Mark player offline and remove
+        _sut.MarkPlayerOffline(code, 2);
+        _sut.TryRemoveIfStillOffline(code, 2).Should().BeTrue();
+        session.Players.Should().NotContainKey(2);
+        session.OfflinePlayers.Should().NotContain(2);
+
+        // 3. Try to remove nonexistent player/session
+        _sut.TryRemoveIfStillOffline("NONE", 2).Should().BeFalse();
+    }
 }
 

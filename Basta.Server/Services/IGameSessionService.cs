@@ -77,6 +77,7 @@ public interface IGameSessionService
     void MarkPlayerOnline(string code, int userId);
 
     void ValidateSessionSettings(int totalRounds, int timerDuration, List<int> categoryIds);
+    bool TryRemoveIfStillOffline(string code, int userId);
 }
 
 
