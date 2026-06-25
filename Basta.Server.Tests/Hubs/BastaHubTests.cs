@@ -17,6 +17,7 @@ public class BastaHubTests
     private readonly Mock<IGameSessionService> _mockSessionService;
     private readonly Mock<IGameOperationService> _mockOperationService;
     private readonly Mock<IScoringService> _mockScoringService;
+    private readonly Mock<IHubContext<BastaHub>> _mockHubContext;
     private readonly Mock<ILogger<BastaHub>> _mockLogger;
     private readonly Mock<IHubCallerClients> _mockClients;
     private readonly Mock<IClientProxy> _mockClientProxy;
@@ -30,6 +31,7 @@ public class BastaHubTests
         _mockSessionService = new Mock<IGameSessionService>();
         _mockOperationService = new Mock<IGameOperationService>();
         _mockScoringService = new Mock<IScoringService>();
+        _mockHubContext = new Mock<IHubContext<BastaHub>>();
         _mockLogger = new Mock<ILogger<BastaHub>>();
         _mockClients = new Mock<IHubCallerClients>();
         _mockClientProxy = new Mock<IClientProxy>();
@@ -40,6 +42,7 @@ public class BastaHubTests
             _mockSessionService.Object, 
             _mockOperationService.Object, 
             _mockScoringService.Object, 
+            _mockHubContext.Object,
             _mockLogger.Object)
         {
             Clients = _mockClients.Object,
