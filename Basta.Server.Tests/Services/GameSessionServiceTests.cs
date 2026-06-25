@@ -395,5 +395,27 @@ public class GameSessionServiceTests
         var guestPlayerOnline = snapshotOnline!.Players.First(p => p.UserId == 2);
         guestPlayerOnline.IsOnline.Should().BeTrue();
     }
+
+    [Fact]
+    public void IsRoundAcceptingAnswers_ValidatesStates()
+    {
+        // Arrange
+        var code = _sut.CreateSession(1, "Host", 5, 60, new List<int> { 1 });
+        
+        // Before round starts: should be false
+        _sut.IsRoundAcceptingAnswers(code).Should().BeFalse();
+
+        // Round starts: should be true
+        _sut.StartNextRound(code);
+        _sut.IsRoundAcceptingAnswers(code).Should().BeTrue();
+
+        // Round locked, but within 3 seconds grace: should be true
+        _sut.LockRound(code);
+        _sut.IsRoundAcceptingAnswers(code).Should().BeTrue();
+
+        // After grace period (e.g. 4 seconds): should be false
+        _timeProvider.Advance(TimeSpan.FromSeconds(4));
+        _sut.IsRoundAcceptingAnswers(code).Should().BeFalse();
+    }
 }
 

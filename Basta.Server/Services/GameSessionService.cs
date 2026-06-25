@@ -164,6 +164,35 @@ public class GameSessionService : IGameSessionService
         }
     }
 
+    public bool IsRoundAcceptingAnswers(string code)
+    {
+        if (!_sessions.TryGetValue(code, out var session)) return false;
+
+        lock (session)
+        {
+            if (!session.RoundActive && !session.RoundLocked)
+            {
+                return false;
+            }
+
+            if (session.RoundLocked)
+            {
+                if (session.RoundLockedAt == null)
+                {
+                    return false;
+                }
+
+                var gracePeriod = TimeSpan.FromSeconds(3);
+                if (_timeProvider.GetUtcNow() - session.RoundLockedAt > gracePeriod)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+    }
+
     public bool TrySubmitAnswers(string code, int userId, Dictionary<int, string> answers)
     {
         if (!_sessions.TryGetValue(code, out var session)) return false;

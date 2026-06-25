@@ -141,31 +141,43 @@ public class BastaHub : Hub
             var session = _gameSessionService.TryGetSession(code);
             if (session != null)
             {
-                // 1. First record in-memory. This checks if the round is already locked.
-                if (_gameSessionService.TrySubmitAnswers(code, userId, answers))
+                // 1. Check if the round is active or in grace period
+                if (!_gameSessionService.IsRoundAcceptingAnswers(code))
                 {
-                    try
-                    {
-                        // 2. Persist to DB and run Phase 1 dictionary validation
-                        await _gameOperationService.SubmitAnswersAsync(code, session.CurrentRound, userId, answers);
+                    return;
+                }
 
-                        // 3. Check if all players have submitted to trigger the validation phase
-                        if (_gameSessionService.CheckAllAnswersSubmitted(code))
-                        {
-                            // Build RoundAnswersDto from the DB (has DictionaryValid + RequiresPeerReview)
-                            var scoringData = await _gameOperationService.GetRoundAnswersDtoAsync(
-                                code, session.CurrentRound);
-                            await Clients.Group(code).SendAsync("DisplayScoring", scoringData);
-                        }
-                    }
-
-                    catch (Microsoft.EntityFrameworkCore.DbUpdateException ex)
+                try
+                {
+                    // 2. Persist to DB first and run Phase 1 dictionary validation
+                    await _gameOperationService.SubmitAnswersAsync(code, session.CurrentRound, userId, answers);
+                }
+                catch (Microsoft.EntityFrameworkCore.DbUpdateException ex)
+                {
+                    // Catch DbUpdateException. Check if duplicate via HasSubmittedAsync.
+                    var isDuplicate = await _gameOperationService.HasSubmittedAsync(code, session.CurrentRound, userId);
+                    if (isDuplicate)
                     {
-                        // Handle race condition: If another thread already persisted for this (Game, Round, User, Category),
-                        // we treat it as idempotent and just log a warning.
                         _logger.LogWarning(ex, "Duplicate submission detected for Game {Code}, Round {Round}, User {UserId}. Ignoring.", 
                             code, session.CurrentRound, userId);
+                        return;
                     }
+                    else
+                    {
+                        throw new HubException("Failed to persist answers to database.", ex);
+                    }
+                }
+
+                // 3. Record in memory only after DB success
+                _gameSessionService.TrySubmitAnswers(code, userId, answers);
+
+                // 4. Check if all players have submitted to trigger the validation phase
+                if (_gameSessionService.CheckAllAnswersSubmitted(code))
+                {
+                    // Build RoundAnswersDto from the DB (has DictionaryValid + RequiresPeerReview)
+                    var scoringData = await _gameOperationService.GetRoundAnswersDtoAsync(
+                        code, session.CurrentRound);
+                    await Clients.Group(code).SendAsync("DisplayScoring", scoringData);
                 }
             }
         }

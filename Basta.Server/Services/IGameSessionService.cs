@@ -43,6 +43,8 @@ public interface IGameSessionService
     /// </summary>
     void LockRound(string code);
 
+    bool IsRoundAcceptingAnswers(string code);
+
     /// <summary>
     /// Records a player's answers for the current round. 
     /// Returns false if the round is already locked.

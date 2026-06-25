@@ -55,6 +55,7 @@ public class BastaHubTests
         _mockClients.Setup(c => c.Caller).Returns(_mockSingleClientProxy.Object);
         _mockOperationService.Setup(o => o.ValidatePlayerAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
+        _mockSessionService.Setup(s => s.IsRoundAcceptingAnswers(It.IsAny<string>())).Returns(true);
     }
 
     [Fact]
@@ -460,6 +461,64 @@ public class BastaHubTests
         _mockSessionService.Verify(s => s.RemovePlayer(code, userId), Times.Never);
         _mockClients.Verify(c => c.Group(code), Times.Once);
         _mockClientProxy.Verify(p => p.SendCoreAsync("ReceiveLobbyUpdate", It.Is<object?[]>(o => (LobbySnapshot)o[0]! == snapshot), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task SubmitAnswers_WhenDbThrowsDbUpdateExceptionAndHasSubmitted_LogsWarningAndReturnsCleanly()
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 1;
+        var currentRound = 2;
+        var session = new GameSession { Code = code, CurrentRound = currentRound };
+        var answers = new Dictionary<int, string> { { 1, "Answer" } };
+
+        _mockContext.Setup(c => c.Items).Returns(new Dictionary<object, object?>
+        {
+            { "GameCode", code },
+            { "UserId", userId }
+        });
+        _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
+        _mockOperationService
+            .Setup(o => o.SubmitAnswersAsync(code, currentRound, userId, answers, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Microsoft.EntityFrameworkCore.DbUpdateException("Constraint violation"));
+        _mockOperationService
+            .Setup(o => o.HasSubmittedAsync(code, currentRound, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true); // Yes, already submitted!
+
+        // Act
+        await _sut.SubmitAnswers(answers);
+
+        // Assert: should not throw, should verify HasSubmittedAsync was checked
+        _mockOperationService.Verify(o => o.HasSubmittedAsync(code, currentRound, userId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SubmitAnswers_WhenDbThrowsDbUpdateExceptionAndNotSubmitted_ThrowsHubException()
+    {
+        // Arrange
+        var code = "ABCD";
+        var userId = 1;
+        var currentRound = 2;
+        var session = new GameSession { Code = code, CurrentRound = currentRound };
+        var answers = new Dictionary<int, string> { { 1, "Answer" } };
+
+        _mockContext.Setup(c => c.Items).Returns(new Dictionary<object, object?>
+        {
+            { "GameCode", code },
+            { "UserId", userId }
+        });
+        _mockSessionService.Setup(s => s.TryGetSession(code)).Returns(session);
+        _mockOperationService
+            .Setup(o => o.SubmitAnswersAsync(code, currentRound, userId, answers, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Microsoft.EntityFrameworkCore.DbUpdateException("Constraint violation"));
+        _mockOperationService
+            .Setup(o => o.HasSubmittedAsync(code, currentRound, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false); // No, not submitted! Genuine DB error.
+
+        // Act & Assert
+        await Assert.ThrowsAsync<HubException>(() => _sut.SubmitAnswers(answers));
+        _mockOperationService.Verify(o => o.HasSubmittedAsync(code, currentRound, userId, It.IsAny<CancellationToken>()), Times.Once);
     }
 }
 

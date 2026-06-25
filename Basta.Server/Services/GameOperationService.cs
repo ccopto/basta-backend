@@ -279,4 +279,11 @@ public class GameOperationService : IGameOperationService
             await _context.SaveChangesAsync(cancellationToken);
         }
     }
+
+    public async Task<bool> HasSubmittedAsync(string code, int roundNumber, int userId, CancellationToken cancellationToken = default)
+    {
+        return await _context.RoundAnswers.AnyAsync(
+            ra => ra.GameId == code && ra.RoundNumber == roundNumber && ra.UserId == userId,
+            cancellationToken);
+    }
 }

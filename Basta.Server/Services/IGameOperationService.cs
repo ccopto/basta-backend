@@ -52,6 +52,8 @@ public interface IGameOperationService
     Task<bool> ValidatePlayerAsync(string code, int userId, CancellationToken cancellationToken = default);
 
     Task UpdateGameSettingsAsync(string code, int totalRounds, int timerDuration, string language, CancellationToken cancellationToken = default);
+
+    Task<bool> HasSubmittedAsync(string code, int roundNumber, int userId, CancellationToken cancellationToken = default);
 }
 
 
