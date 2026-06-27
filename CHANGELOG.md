@@ -8,6 +8,18 @@ All notable changes for `ccopto/basta-backend`.
 - **Fixes**: bug fixes, security fixes, correctness fixes, and reliability repairs.
 - **Patches**: documentation, tests, CI, dependency maintenance, release markers, and other non-feature maintenance work.
 
+## `v1.0.2` - 2026-06-27
+
+Audit remediation fixes for validation logic.
+
+**Fixes**
+
+- Treated blank and single-character answers as final invalid without requiring peer review.
+
+**Patches**
+
+- Added tests for blank and short answer handling.
+
 ## `v1.0.1` - 2026-06-26
 
 Release documentation maintenance.
