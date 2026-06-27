@@ -218,6 +218,47 @@ public class GameOperationServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SubmitAnswersAsync_BlankAnswer_IsFinalInvalidWithoutReview()
+    {
+        var result = await _sut.CreateGameAsync("Host", "en", "en", 5, 60, new List<int> { 1 });
+
+        await _sut.SubmitAnswersAsync(
+            result.GameCode,
+            1,
+            result.HostUserId,
+            new Dictionary<int, string> { { 1, "   " } });
+
+        var answer = await _context.RoundAnswers
+            .AsNoTracking()
+            .SingleAsync(a => a.GameId == result.GameCode && a.UserId == result.HostUserId);
+
+        answer.SubmittedAnswer.Should().BeEmpty();
+        answer.DictionaryValid.Should().BeFalse();
+        answer.RequiresPeerReview.Should().BeFalse();
+        answer.IsValid.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task SubmitAnswersAsync_OneCharacterAnswer_IsFinalInvalidWithoutReview()
+    {
+        var result = await _sut.CreateGameAsync("Host", "en", "en", 5, 60, new List<int> { 1 });
+
+        await _sut.SubmitAnswersAsync(
+            result.GameCode,
+            1,
+            result.HostUserId,
+            new Dictionary<int, string> { { 1, "A" } });
+
+        var answer = await _context.RoundAnswers
+            .AsNoTracking()
+            .SingleAsync(a => a.GameId == result.GameCode && a.UserId == result.HostUserId);
+
+        answer.DictionaryValid.Should().BeFalse();
+        answer.RequiresPeerReview.Should().BeFalse();
+        answer.IsValid.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task UpdateGameSettingsAsync_UpdatesDatabaseFields()
     {
         // Arrange
