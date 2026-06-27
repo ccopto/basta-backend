@@ -179,9 +179,13 @@ public class GameOperationService : IGameOperationService
             var answer = kvp.Value?.Trim() ?? string.Empty;
             var validationType = categoryTypes.TryGetValue(kvp.Key, out var vt) ? vt : CategoryValidationType.CommonWord;
 
-            var dictValid = !string.IsNullOrWhiteSpace(answer)
-                && answer.Length >= 2
-                && _dictionaryService.IsValidWord(answer, language, validationType);
+            bool isBlankOrShort = string.IsNullOrWhiteSpace(answer) || answer.Length < 2;
+
+            bool dictValid = !isBlankOrShort && _dictionaryService.IsValidWord(answer, language, validationType);
+            bool requiresPeerReview = !dictValid && !isBlankOrShort;
+            
+            // Blank/short: final invalid (no review). Dict-fail: pending peer review (null). Dict-pass: final valid.
+            bool? isValid = dictValid ? true : (isBlankOrShort ? false : null);
 
             return new RoundAnswer
             {
@@ -191,9 +195,8 @@ public class GameOperationService : IGameOperationService
                 CategoryId = kvp.Key,
                 SubmittedAnswer = answer,
                 DictionaryValid = dictValid,
-                RequiresPeerReview = !dictValid,
-                // Phase 1 pass: auto-accept. Phase 1 fail: leave null (peer decides).
-                IsValid = dictValid ? true : null,
+                RequiresPeerReview = requiresPeerReview,
+                IsValid = isValid,
                 PointsAwarded = 0
             };
         }).ToList();
