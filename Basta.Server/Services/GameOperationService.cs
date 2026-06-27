@@ -183,6 +183,8 @@ public class GameOperationService : IGameOperationService
 
             bool dictValid = !isBlankOrShort && _dictionaryService.IsValidWord(answer, language, validationType);
             bool requiresPeerReview = !dictValid && !isBlankOrShort;
+            
+            // Blank/short: final invalid (no review). Dict-fail: pending peer review (null). Dict-pass: final valid.
             bool? isValid = dictValid ? true : (isBlankOrShort ? false : null);
 
             return new RoundAnswer

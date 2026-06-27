@@ -253,6 +253,7 @@ public class GameOperationServiceTests : IDisposable
             .AsNoTracking()
             .SingleAsync(a => a.GameId == result.GameCode && a.UserId == result.HostUserId);
 
+        answer.SubmittedAnswer.Should().Be("A");
         answer.DictionaryValid.Should().BeFalse();
         answer.RequiresPeerReview.Should().BeFalse();
         answer.IsValid.Should().BeFalse();
